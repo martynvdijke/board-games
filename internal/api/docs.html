@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Shelf API</title>
+<style>
+  :root{--bg:#f7f2e8;--surface:#fffdf8;--ink:#1f1b16;--muted:#6f6558;--line:#e3d9c8;--primary:#1f5a45;--brass:#c97b3c}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 "DM Sans",system-ui,sans-serif}
+  .wrap{max-width:980px;margin:0 auto;padding:48px 24px 80px}a{color:var(--primary)}
+  h1{font:500 44px/1.05 Georgia,serif;letter-spacing:-.03em;margin:16px 0 8px}h2{font:500 27px/1.2 Georgia,serif;margin:40px 0 12px}h3{font:600 16px/1.3 inherit;margin:0}
+  p{color:var(--muted);max-width:72ch}.eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;color:var(--brass)}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin:14px 0}
+  .head{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.method{font:700 11px/1 ui-monospace,monospace;padding:5px 7px;border-radius:4px;background:#e4efe8;color:var(--primary);text-transform:uppercase}.method.patch{background:#f6e7d5;color:#7a4316}.method.post{background:#e4efe8}.method.delete{background:#f7e4df;color:#9b3a32}
+  code,pre{font-family:ui-monospace,Menlo,monospace;font-size:12px}pre{background:#1f1b16;color:#f1eadd;padding:16px;border-radius:8px;overflow:auto;line-height:1.55}
+  .path{font-family:ui-monospace,Menlo,monospace;font-size:13px;color:var(--muted)}.desc{margin:8px 0 0;font-size:14px}
+  .notice{padding:14px 16px;border:1px solid var(--line);border-left:3px solid var(--brass);background:var(--surface);border-radius:6px;margin:24px 0}
+  .links{display:flex;gap:16px;flex-wrap:wrap}.links a{font-weight:600}
+  table{border-collapse:collapse;width:100%;font-size:14px}td,th{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">The Shelf · API v1</p>
+  <h1>A small, predictable API.</h1>
+  <p>Everything the web app does with games, plays, stats, and sync is available to scripts, the Android companion, and TRMNL. Authentication is bearer-only.</p>
+  <div class="notice"><strong>Create a token</strong> in <a href="/settings#tokens">Settings → API tokens</a>. Scopes are <code>read</code>, <code>write</code> (implies read), and <code>trmnl</code>. Treat tokens like passwords.</div>
+  <div class="links"><a href="/api/openapi.json">OpenAPI 3.1 specification</a><a href="/">Back to the shelf</a></div>
+
+  <h2>Authentication</h2>
+  <pre>curl -H "Authorization: Bearer bg_your_token" \
+  http://localhost:6290/api/v1/games</pre>
+  <p>Unauthorized requests return <code>401</code> with <code>WWW-Authenticate: Bearer</code>. Missing scopes return <code>403</code>. Rate limit: 120 requests per minute per user.</p>
+
+  <h2>Errors</h2>
+  <pre>{
+  "error": {
+    "code": "invalid_request",
+    "message": "played_at must be YYYY-MM-DD",
+    "fields": { "played_at": "invalid date" }
+  }
+}</pre>
+
+  <h2>Endpoints</h2>
+  <div id="endpoints"><p>Loading the endpoint list…</p></div>
+
+  <h2>Quick start</h2>
+  <pre># Who am I?
+curl -sH "Authorization: Bearer $SHELF_TOKEN" \
+  "$SHELF_URL/api/v1/me"
+
+# Games that have never been played
+curl -sH "Authorization: Bearer $SHELF_TOKEN" \
+  "$SHELF_URL/api/v1/games?status=unplayed&amp;per_page=50"
+
+# Log a play
+curl -s -X POST "$SHELF_URL/api/v1/plays" \
+  -H "Authorization: Bearer $SHELF_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"game_id":42,"played_at":"2026-10-20","location":"Home","players":[{"name":"Sam","is_winner":true}]}'</pre>
+</div>
+<script>
+fetch('/api/openapi.json').then(r => r.json()).then(spec => {
+  const root = document.getElementById('endpoints')
+  const tags = spec.tags.map(t => t.name)
+  root.innerHTML = tags.map(tag => {
+    const rows = Object.entries(spec.paths).flatMap(([path, ops]) =>
+      Object.entries(ops).filter(([, op]) => (op.tags || []).includes(tag)).map(([method, op]) => `
+        <div class="card">
+          <div class="head"><span class="method ${method}">${method}</span><code class="path">/api/v1${path}</code></div>
+          <h3 style="margin-top:8px">${op.summary}</h3>
+          ${op.description ? `<p class="desc">${op.description}</p>` : ''}
+        </div>`)
+    ).join('')
+    return rows ? `<h3 style="margin-top:28px">${tag}</h3>${rows}` : ''
+  }).join('')
+}).catch(() => {
+  document.getElementById('endpoints').innerHTML = '<p>Could not load the endpoint list. The <a href="/api/openapi.json">specification</a> is still available.</p>'
+})
+</script>
+</body>
+</html>

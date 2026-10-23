@@ -1,0 +1,71 @@
+{{define "shelf_results"}}
+<div class="results-head">
+  <p class="result-count" id="result-count">{{.Total}} {{if eq .Total 1}}game{{else}}games{{end}}{{if .Filters.HasFilters}} matching{{end}}</p>
+  {{if .Filters.HasFilters}}<a class="text-link text-link--small" href="/">Reset filters</a>{{end}}
+</div>
+
+{{if .Games}}
+{{if eq .View "list"}}
+<div class="game-list" id="game-grid">
+  {{range .Games}}
+  <a class="game-row" href="/games/{{.ID}}">
+    <img class="game-row-cover" src="{{.CoverURL}}" alt="Cover of {{.Name}}" loading="lazy" width="56" height="84">
+    <div class="game-row-main">
+      <div class="game-row-title">
+        <h3>{{.Name}}</h3>
+        {{if .Favorite}}<svg class="favorite-mark" aria-label="Favourite"><use href="#i-heart"/></svg>{{end}}
+      </div>
+      <p class="game-row-meta">{{if .Year}}{{.Year}} · {{end}}{{with .PlayerLabel}}{{.}} · {{end}}{{with .TimeLabel}}{{.}}{{end}}{{if .IsExpansion}} · Expansion{{end}}</p>
+    </div>
+    <div class="game-row-stats">
+      {{if .UserRating}}<span class="rating-chip rating-chip--small"><svg><use href="#i-star"/></svg>{{.RatingLabel}}</span>{{end}}
+      <span class="row-plays {{if eq .TotalPlays 0}}is-unplayed{{end}}">{{.PlayLabel}}</span>
+      {{if .BGGRating}}<span class="bgg-rating" title="BoardGameGeek rating">BGG {{printf "%.1f" .BGGRating}}</span>{{end}}
+    </div>
+    <svg class="row-chevron"><use href="#i-chevron"/></svg>
+  </a>
+  {{end}}
+</div>
+{{else}}
+<div class="game-grid" id="game-grid">
+  {{range .Games}}
+  <article class="game-card">
+    <a class="game-card-link" href="/games/{{.ID}}">
+      <div class="game-cover">
+        <img src="{{.CoverURL}}" alt="Cover of {{.Name}}" loading="lazy" width="300" height="450">
+        {{if eq .TotalPlays 0}}<span class="ribbon">Unplayed</span>{{end}}
+        {{if .Favorite}}<span class="favorite-badge" title="Favourite"><svg><use href="#i-heart"/></svg></span>{{end}}
+        {{if .UserRating}}<span class="rating-chip"><svg><use href="#i-star"/></svg>{{.RatingLabel}}</span>{{end}}
+      </div>
+      <div class="game-card-body">
+        <h3 class="game-name">{{.Name}}</h3>
+        <p class="game-sub">{{if .Year}}{{.Year}}{{end}}{{if and .Year (or .PlayerLabel .TimeLabel)}} · {{end}}{{.PlayerLabel}}{{if and .PlayerLabel .TimeLabel}} · {{end}}{{.TimeLabel}}</p>
+        <div class="game-card-foot">
+          <span class="play-count">{{.PlayLabel}}</span>
+          {{if .WeightLabel}}<span class="weight-tag">{{.WeightLabel}}</span>{{end}}
+        </div>
+      </div>
+    </a>
+  </article>
+  {{end}}
+</div>
+{{end}}
+
+{{if gt .PageCount 1}}
+<nav class="pagination" aria-label="Shelf pages">
+  {{if .HasPrev}}<a class="button button--ghost button--small" href="{{.PageURL (sub .Filters.Page 1)}}" rel="prev">Previous</a>{{else}}<span class="button button--ghost button--small is-disabled">Previous</span>{{end}}
+  <div class="page-numbers">
+    {{range .Pages}}<a class="page-number {{if eq . $.Filters.Page}}is-active{{end}}" href="{{$.PageURL .}}" {{if eq . $.Filters.Page}}aria-current="page"{{end}}>{{.}}</a>{{end}}
+  </div>
+  {{if .HasNext}}<a class="button button--ghost button--small" href="{{.PageURL (add .Filters.Page 1)}}" rel="next">Next</a>{{else}}<span class="button button--ghost button--small is-disabled">Next</span>{{end}}
+</nav>
+{{end}}
+{{else}}
+<div class="empty-state">
+  <div class="empty-mark" aria-hidden="true"><svg><use href="#i-search"/></svg></div>
+  <h3>{{if .Filters.HasFilters}}No games fit that combination{{else}}Nothing here yet{{end}}</h3>
+  <p>{{if .Filters.HasFilters}}Try loosening a filter, or clear them and browse the whole shelf.{{else}}Sync your BoardGameGeek collection to fill the shelves.{{end}}</p>
+  {{if .Filters.HasFilters}}<a class="button button--ghost" href="/">Clear filters</a>{{else}}<a class="button button--primary" href="/settings#sync">Connect BoardGameGeek</a>{{end}}
+</div>
+{{end}}
+{{end}}

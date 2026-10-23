@@ -1,0 +1,58 @@
+{{define "content"}}
+{{$d := .Data}}
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <a href="/plays">Play log</a><svg><use href="#i-chevron"/></svg><span>{{if $d.Editing}}Edit play{{else}}Log a play{{end}}</span>
+</nav>
+
+<section class="form-page">
+  <div class="form-intro">
+    <p class="eyebrow">{{if $d.Editing}}Correct the record{{else}}Another one for the log{{end}}</p>
+    <h1 class="display display--compact">{{if $d.Editing}}Edit this play<span class="display-dot">.</span>{{else}}Who made it to the table<span class="display-dot">?</span>{{end}}</h1>
+    <p class="lede">A few details now make the stats and memories much better later.</p>
+  </div>
+
+  <form class="panel form-panel" method="post" action="{{if $d.Editing}}/plays/{{$d.Play.ID}}{{else}}/plays{{end}}" data-play-form data-play-mode="{{if $d.Editing}}edit{{else}}create{{end}}">
+    <input type="hidden" name="csrf_token" value="{{.CSRF}}">
+    {{if .Error}}<div class="callout callout--danger" role="alert">{{.Error}}</div>{{end}}
+
+    <div class="field-grid">
+      <label class="field field--wide"><span>Game</span>
+        <select name="game_id" required>
+          <option value="">Choose a game…</option>
+          {{range $d.Games}}<option value="{{.ID}}" {{if eq $.Data.SelectedGameID .ID}}selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </label>
+      <label class="field"><span>Date played</span><input type="date" name="played_at" value="{{$d.Attempt.PlayedAt}}" max="{{$d.Today}}" required></label>
+      <label class="field"><span>Location</span><input type="text" name="location" value="{{$d.Attempt.Location}}" placeholder="Home, club, convention…"></label>
+      <label class="field"><span>Duration (minutes)</span><input type="number" name="duration" min="0" max="1440" value="{{if $d.Attempt.Duration}}{{$d.Attempt.Duration}}{{end}}" placeholder="Optional"></label>
+      <label class="field"><span>Copies / rounds</span><input type="number" name="quantity" min="1" max="50" value="{{if $d.Attempt.Quantity}}{{$d.Attempt.Quantity}}{{else}}1{{end}}"></label>
+    </div>
+
+    <fieldset class="players-fieldset">
+      <div class="fieldset-head">
+        <legend>Players</legend>
+        <button class="button button--quiet button--small" type="button" data-add-player><svg><use href="#i-plus"/></svg> Add player</button>
+      </div>
+      <div class="player-rows" data-player-rows>
+        {{range $i, $p := $d.Attempt.Players}}
+        <div class="player-row" data-player-row>
+          <span class="player-index">{{add $i 1}}</span>
+          <label class="field"><span class="sr-only">Player name</span><input type="text" name="player_name" value="{{$p.Name}}" placeholder="Player name" autocomplete="off"></label>
+          <label class="field field--score"><span class="sr-only">Score</span><input type="text" name="player_score" value="{{$p.Score}}" placeholder="Score"></label>
+          <label class="check check--inline"><input type="checkbox" name="player_winner" value="{{$i}}" {{if $p.IsWinner}}checked{{end}}><span>Won</span></label>
+          <button class="icon-button icon-button--danger" type="button" data-remove-player aria-label="Remove player"><svg><use href="#i-close"/></svg></button>
+        </div>
+        {{end}}
+      </div>
+      <p class="field-hint">Names are enough. Scores and winners are optional.</p>
+    </fieldset>
+
+    <label class="field"><span>Notes</span><textarea name="notes" rows="4" placeholder="What happened? House rules, best moment, who swore they'd never play again…">{{$d.Attempt.Notes}}</textarea></label>
+
+    <div class="form-actions">
+      <button class="button button--primary" type="submit">{{if $d.Editing}}Save changes{{else}}Log this play{{end}}</button>
+      <a class="button button--ghost" href="{{if $d.Editing}}/plays{{else}}/{{end}}">Cancel</a>
+    </div>
+  </form>
+</section>
+{{end}}

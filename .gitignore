@@ -31,3 +31,16 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Application
+node_modules/
+internal/web/static/*
+!internal/web/static/.gitkeep
+data/
+.e2e/
+bin/
+test-results/
+playwright-report/
+*.db
+*.db-wal
+*.db-shm

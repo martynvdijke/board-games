@@ -1,0 +1,11 @@
+{{define "content"}}
+<section class="error-page">
+  <p class="error-code">{{.Data.Status}}</p>
+  <h1 class="display">{{.Data.Message}}<span class="display-dot">.</span></h1>
+  <p class="lede">The shelf is still here. Try heading back and opening the door again.</p>
+  <div class="form-actions">
+    <a class="button button--primary" href="/">Back to the shelf</a>
+    <a class="button button--ghost" href="/plays">Play log</a>
+  </div>
+</section>
+{{end}}

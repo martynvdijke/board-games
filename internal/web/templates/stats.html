@@ -1,0 +1,88 @@
+{{define "content"}}
+{{$d := .Data}}{{$s := $d.Stats}}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">A year in games</p>
+    <h1 class="display display--compact">{{$s.Year}} in review<span class="display-dot">.</span></h1>
+    <p class="lede">The plays, people, and games that filled the table.</p>
+  </div>
+  <form class="year-switcher" method="get" action="/stats">
+    <label class="select-field"><span class="sr-only">Year</span>
+      <select name="year" data-autosubmit>
+        {{if not $d.Years}}<option value="{{$s.Year}}">{{$s.Year}}</option>{{end}}
+        {{range $d.Years}}<option value="{{.}}" {{if eq $.Data.Stats.Year .}}selected{{end}}>{{.}}</option>{{end}}
+      </select>
+    </label>
+  </form>
+</section>
+
+<section class="stat-cards">
+  <div class="stat-card"><span class="stat-label">Sessions</span><span class="stat-big">{{$s.TotalPlays}}</span><span class="stat-foot">plays logged</span></div>
+  <div class="stat-card"><span class="stat-label">Distinct games</span><span class="stat-big">{{len $s.TopGames}}</span><span class="stat-foot">made it to the table</span></div>
+  <div class="stat-card"><span class="stat-label">Shelf of shame</span><span class="stat-big">{{$d.Shelf.Unplayed}}</span><span class="stat-foot">{{if $d.Shelf.Owned}}of {{$d.Shelf.Owned}} owned games{{else}}owned games{{end}}</span></div>
+  <div class="stat-card"><span class="stat-label">All-time plays</span><span class="stat-big">{{$d.Shelf.TotalPlays}}</span><span class="stat-foot">across the whole shelf</span></div>
+</section>
+
+<div class="stats-columns">
+  <section class="panel chart-panel" aria-labelledby="monthly-title">
+    <div class="panel-head"><h2 id="monthly-title" class="section-title">Plays by month</h2></div>
+    {{if $s.TotalPlays}}
+    <div class="bar-chart" role="img" aria-label="Monthly play counts for {{$s.Year}}">
+      {{range $s.Monthly}}
+      <div class="bar-column">
+        <span class="bar-value">{{if .Count}}{{.Count}}{{end}}</span>
+        <div class="bar-track"><div class="bar" style="--bar: {{pct .Count $.Data.ChartMax}}%"></div></div>
+        <span class="bar-label">{{.Label}}</span>
+      </div>
+      {{end}}
+    </div>
+    {{else}}<p class="panel-empty">No plays recorded in {{$s.Year}} yet.</p>{{end}}
+  </section>
+
+  <section class="panel" aria-labelledby="top-games-title">
+    <div class="panel-head"><h2 id="top-games-title" class="section-title">Most played</h2></div>
+    {{if $s.TopGames}}
+    <ol class="rank-list">
+      {{range $i, $g := $s.TopGames}}
+      <li><span class="rank">{{add $i 1}}</span><span class="rank-name">{{$g.Name}}</span><span class="rank-bar"><i style="--bar: {{pct $g.Count $.Data.TopMax}}%"></i></span><span class="rank-count">{{$g.Count}}</span></li>
+      {{end}}
+    </ol>
+    {{else}}<p class="panel-empty">Play something and this list comes alive.</p>{{end}}
+  </section>
+</div>
+
+<div class="stats-columns">
+  <section class="panel" aria-labelledby="people-title">
+    <div class="panel-head"><h2 id="people-title" class="section-title">The regulars</h2></div>
+    {{if $s.Leaderboard}}
+    <table class="leaderboard">
+      <thead><tr><th>Player</th><th>Plays</th><th>Wins</th></tr></thead>
+      <tbody>{{range $s.Leaderboard}}<tr><td>{{.Name}}</td><td>{{.Plays}}</td><td>{{.Wins}}</td></tr>{{end}}</tbody>
+    </table>
+    {{else}}<p class="panel-empty">Add players to your plays to see who keeps winning.</p>{{end}}
+  </section>
+
+  <section class="panel" aria-labelledby="weight-title">
+    <div class="panel-head"><h2 id="weight-title" class="section-title">Weight of play</h2></div>
+    <div class="weight-bands">
+      {{range $s.WeightBands}}
+      <div class="band"><span class="band-label">{{.Label}}</span><span class="band-track"><i style="--bar: {{pct .Count $.Data.Stats.TotalPlays}}%"></i></span><span class="band-count">{{.Count}}</span></div>
+      {{end}}
+    </div>
+  </section>
+</div>
+
+{{if $d.Shelf.LongestUnplayed}}
+<section class="shame-callout">
+  <div class="shame-copy">
+    <p class="eyebrow">The shelf of shame</p>
+    <h2>{{$d.Shelf.LongestUnplayed.Name}} has waited {{$d.Shelf.LongestWaitDays}} days.</h2>
+    <p>It joined the shelf {{dateShort $d.Shelf.LongestWaitSince}} and hasn't been played since. Maybe this week.</p>
+  </div>
+  <div class="shame-action">
+    <img src="{{$d.Shelf.LongestUnplayed.CoverURL}}" alt="Cover of {{$d.Shelf.LongestUnplayed.Name}}" width="120" height="180" loading="lazy">
+    <a class="button button--primary" href="/plays/new?game={{$d.Shelf.LongestUnplayed.ID}}">Play this one</a>
+  </div>
+</section>
+{{end}}
+{{end}}

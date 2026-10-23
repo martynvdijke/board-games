@@ -1,0 +1,1111 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "The Shelf API",
+    "version": "1.0.0",
+    "description": "Bearer-authenticated JSON API for a self-hosted board game shelf."
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Account"
+    },
+    {
+      "name": "Games"
+    },
+    {
+      "name": "Plays"
+    },
+    {
+      "name": "Stats"
+    },
+    {
+      "name": "Sync"
+    },
+    {
+      "name": "TRMNL"
+    }
+  ],
+  "paths": {
+    "/me": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Current user",
+        "responses": {
+          "200": {
+            "description": "Current user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Me"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/games": {
+      "get": {
+        "tags": [
+          "Games"
+        ],
+        "summary": "List shelf games",
+        "responses": {
+          "200": {
+            "description": "A page of games",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "owned",
+                "wishlist",
+                "want_to_play",
+                "preordered",
+                "for_trade",
+                "favorite",
+                "unplayed"
+              ]
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "name",
+                "year",
+                "rating",
+                "bgg_rating",
+                "weight",
+                "weight_desc",
+                "added",
+                "plays"
+              ]
+            }
+          },
+          {
+            "name": "players",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20
+            }
+          },
+          {
+            "name": "max_playtime",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "min_weight",
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "max_weight",
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mechanic",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "description": "Number of items to skip."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 24
+            },
+            "description": "Maximum items to return."
+          }
+        ]
+      }
+    },
+    "/games/{id}": {
+      "get": {
+        "tags": [
+          "Games"
+        ],
+        "summary": "Get a game on the shelf",
+        "responses": {
+          "200": {
+            "description": "Game detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/GameDetail"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GameID"
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Games"
+        ],
+        "summary": "Update collection details",
+        "responses": {
+          "200": {
+            "description": "Updated game",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Game"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          }
+        },
+        "description": "Partial update. Send booleans, strings, or user_rating (1-10 in half steps). Use clear_rating or clear_price to remove values.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GameID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionPatch"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/plays": {
+      "get": {
+        "tags": [
+          "Plays"
+        ],
+        "summary": "List plays",
+        "responses": {
+          "200": {
+            "description": "A page of plays",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "game_id",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "description": "Number of items to skip."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 24
+            },
+            "description": "Maximum items to return."
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Plays"
+        ],
+        "summary": "Log a play",
+        "responses": {
+          "201": {
+            "description": "Created play",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Play"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/plays/{id}": {
+      "get": {
+        "tags": [
+          "Plays"
+        ],
+        "summary": "Get a play",
+        "responses": {
+          "200": {
+            "description": "Play",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Play"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PlayID"
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Plays"
+        ],
+        "summary": "Edit a local play",
+        "responses": {
+          "200": {
+            "description": "Updated play",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Play"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Imported play"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          }
+        },
+        "description": "BGG-imported plays are read-only. Omitted fields keep their current values.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PlayID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayPatch"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Plays"
+        ],
+        "summary": "Delete a local play",
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PlayID"
+          }
+        ]
+      }
+    },
+    "/stats": {
+      "get": {
+        "tags": [
+          "Stats"
+        ],
+        "summary": "Play and shelf statistics",
+        "responses": {
+          "200": {
+            "description": "Statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/sync": {
+      "get": {
+        "tags": [
+          "Sync"
+        ],
+        "summary": "Latest sync run",
+        "responses": {
+          "200": {
+            "description": "Run or null",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/SyncRun"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Sync"
+        ],
+        "summary": "Start a BGG sync",
+        "responses": {
+          "202": {
+            "description": "Sync accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SyncRun"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sync already running or BGG not connected"
+          }
+        }
+      }
+    },
+    "/trmnl": {
+      "get": {
+        "tags": [
+          "TRMNL"
+        ],
+        "summary": "TRMNL e-ink feed",
+        "responses": {
+          "200": {
+            "description": "800x480 display payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing trmnl scope"
+          }
+        },
+        "description": "Requires a token with the trmnl scope. Image URLs are absolute. Caching is disabled."
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Personal token beginning with bg_, or an OIDC JWT."
+      }
+    },
+    "parameters": {
+      "GameID": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "PlayID": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Missing or invalid bearer token",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Validation": {
+        "description": "The request could not be validated",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Pagination": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Me": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "avatar_url": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "member"
+            ]
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Game": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "bgg_id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "year": {
+            "type": "integer"
+          },
+          "image_url": {
+            "type": "string"
+          },
+          "bgg_url": {
+            "type": "string"
+          },
+          "min_players": {
+            "type": "integer"
+          },
+          "max_players": {
+            "type": "integer"
+          },
+          "min_playtime": {
+            "type": "integer"
+          },
+          "max_playtime": {
+            "type": "integer"
+          },
+          "min_age": {
+            "type": "integer"
+          },
+          "weight": {
+            "type": "number"
+          },
+          "bgg_rating": {
+            "type": "number"
+          },
+          "bgg_rank": {
+            "type": "integer"
+          },
+          "user_rating": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "owned": {
+            "type": "boolean"
+          },
+          "wishlist": {
+            "type": "boolean"
+          },
+          "want_to_play": {
+            "type": "boolean"
+          },
+          "preordered": {
+            "type": "boolean"
+          },
+          "for_trade": {
+            "type": "boolean"
+          },
+          "favorite": {
+            "type": "boolean"
+          },
+          "bgg_num_plays": {
+            "type": "integer"
+          },
+          "local_plays": {
+            "type": "integer"
+          },
+          "total_plays": {
+            "type": "integer"
+          },
+          "added_at": {
+            "type": "string"
+          },
+          "is_expansion": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      },
+      "GameDetail": {
+        "type": "object",
+        "properties": {
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "description": {
+            "type": "string"
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mechanics": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "designers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "publishers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "location": {
+            "type": "string"
+          },
+          "condition": {
+            "type": "string"
+          },
+          "price_paid_cents": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      },
+      "CollectionPatch": {
+        "type": "object",
+        "properties": {
+          "owned": {
+            "type": "boolean"
+          },
+          "wishlist": {
+            "type": "boolean"
+          },
+          "want_to_play": {
+            "type": "boolean"
+          },
+          "preordered": {
+            "type": "boolean"
+          },
+          "for_trade": {
+            "type": "boolean"
+          },
+          "favorite": {
+            "type": "boolean"
+          },
+          "user_rating": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 10
+          },
+          "clear_rating": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "acquisition_date": {
+            "type": "string"
+          },
+          "price_paid_cents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "clear_price": {
+            "type": "boolean"
+          },
+          "location": {
+            "type": "string"
+          },
+          "condition": {
+            "type": "string"
+          }
+        }
+      },
+      "Player": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "score": {
+            "type": "string"
+          },
+          "is_winner": {
+            "type": "boolean"
+          },
+          "is_first_play": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PlayInput": {
+        "type": "object",
+        "required": [
+          "game_id",
+          "played_at"
+        ],
+        "properties": {
+          "game_id": {
+            "type": "integer"
+          },
+          "played_at": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "duration_minutes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1440
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 1
+          },
+          "notes": {
+            "type": "string"
+          },
+          "players": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/Player"
+            }
+          }
+        }
+      },
+      "PlayPatch": {
+        "type": "object",
+        "properties": {
+          "game_id": {
+            "type": "integer"
+          },
+          "played_at": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "duration_minutes": {
+            "type": "integer"
+          },
+          "quantity": {
+            "type": "integer"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Player"
+            }
+          }
+        }
+      },
+      "Play": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "game_id": {
+            "type": "integer"
+          },
+          "game_name": {
+            "type": "string"
+          },
+          "image_url": {
+            "type": "string"
+          },
+          "played_at": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "duration_minutes": {
+            "type": "integer"
+          },
+          "quantity": {
+            "type": "integer"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "local",
+              "bgg"
+            ]
+          },
+          "bgg_play_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Player"
+            }
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        }
+      },
+      "SyncRun": {
+        "type": "object",
+        "description": "Sync run fields use Go struct names.",
+        "properties": {
+          "ID": {
+            "type": "string"
+          },
+          "Status": {
+            "type": "string"
+          },
+          "Phase": {
+            "type": "string"
+          },
+          "CollectionCount": {
+            "type": "integer"
+          },
+          "ThingsCount": {
+            "type": "integer"
+          },
+          "PlaysCount": {
+            "type": "integer"
+          },
+          "Error": {
+            "type": "string"
+          },
+          "Trigger": {
+            "type": "string"
+          },
+          "StartedAt": {
+            "type": "string"
+          },
+          "FinishedAt": {
+            "type": "string"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

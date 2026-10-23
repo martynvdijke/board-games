@@ -1,0 +1,110 @@
+{{define "content"}}
+{{$d := .Data}}
+<section class="masthead">
+  <div class="masthead-copy">
+    <p class="eyebrow">{{$d.Greeting}}{{if $d.FirstName}}, {{$d.FirstName}}{{end}}</p>
+    <h1 class="display">Your shelf<span class="display-dot">.</span></h1>
+    <p class="lede">{{if $d.Stats.Owned}}{{$d.Stats.Owned}} games, {{$d.Stats.Unplayed}} still waiting for their first play. Let's find something worth opening.{{else}}Nothing on the shelf yet. Connect BoardGameGeek and bring your collection home.{{end}}</p>
+  </div>
+  <div class="masthead-actions">
+    <a class="button button--primary" href="/plays/new"><svg><use href="#i-plus"/></svg> Log a play</a>
+    <a class="button button--ghost" href="/settings#sync"><svg><use href="#i-sync"/></svg> Sync BGG</a>
+  </div>
+</section>
+
+<section class="stat-strip" aria-label="Collection at a glance">
+  <a class="stat" href="/?status=owned"><span class="stat-label">Owned</span><span class="stat-value">{{$d.Stats.Owned}}</span></a>
+  <a class="stat" href="/?status=unplayed"><span class="stat-label">Unplayed</span><span class="stat-value">{{$d.Stats.Unplayed}}{{if $d.Stats.Owned}}<span class="stat-note">{{pct $d.Stats.Unplayed $d.Stats.Owned}}%</span>{{end}}</span></a>
+  <a class="stat" href="/plays"><span class="stat-label">Plays this year</span><span class="stat-value">{{$d.Stats.PlaysThisYear}}</span></a>
+  <a class="stat" href="/?status=wishlist"><span class="stat-label">Wishlist</span><span class="stat-value">{{$d.Stats.Wishlist}}</span></a>
+</section>
+
+{{if $d.Pick}}
+<section class="feature-pick" aria-labelledby="pick-title">
+  <div class="feature-pick-cover">
+    <img src="{{$d.Pick.CoverURL}}" alt="Cover of {{$d.Pick.Name}}" width="300" height="450">
+    <span class="feature-stamp">On the table</span>
+  </div>
+  <div class="feature-pick-body">
+    <p class="eyebrow">A gentle nudge</p>
+    <h2 id="pick-title" class="feature-title">{{$d.Pick.Name}}</h2>
+    <div class="meta-row">
+      {{if $d.Pick.Year}}<span>{{$d.Pick.Year}}</span>{{end}}
+      {{if $d.Pick.Players}}<span><svg><use href="#i-users"/></svg>{{$d.Pick.Players}}</span>{{end}}
+      {{if $d.Pick.Playtime}}<span><svg><use href="#i-clock"/></svg>{{$d.Pick.Playtime}}</span>{{end}}
+      {{if $d.Pick.Weight}}<span>Weight {{$d.Pick.Weight}}</span>{{end}}
+    </div>
+    <p class="pick-reason">{{$d.Pick.Reason}}</p>
+    <div class="pick-actions">
+      <a class="button button--primary" href="/plays/new?game={{$d.Pick.GameID}}"><svg><use href="#i-dice"/></svg> Log a play</a>
+      <a class="text-link" href="/games/{{$d.Pick.GameID}}">Open the game <svg><use href="#i-arrow"/></svg></a>
+    </div>
+  </div>
+</section>
+{{else if not $d.Stats.Owned}}
+<section class="empty-hero">
+  <div class="empty-mark" aria-hidden="true"><svg><use href="#i-shelf"/></svg></div>
+  <h2>Your shelf is waiting</h2>
+  <p>Connect your BoardGameGeek username in settings, then sync to pull in everything you own.</p>
+  <a class="button button--primary" href="/settings#sync">Connect BoardGameGeek</a>
+</section>
+{{end}}
+
+<section class="shelf" aria-labelledby="shelf-title">
+  <div class="shelf-head">
+    <h2 id="shelf-title" class="section-title">The collection</h2>
+    <div class="view-toggle" role="group" aria-label="View">
+      <a href="{{$d.WithParam "view" "grid"}}" class="{{if eq $d.View "grid"}}is-active{{end}}" aria-label="Grid view" {{if eq $d.View "grid"}}aria-current="true"{{end}}><svg><use href="#i-grid"/></svg></a>
+      <a href="{{$d.WithParam "view" "list"}}" class="{{if eq $d.View "list"}}is-active{{end}}" aria-label="List view" {{if eq $d.View "list"}}aria-current="true"{{end}}><svg><use href="#i-list"/></svg></a>
+    </div>
+  </div>
+
+  <form class="filter-bar" method="get" action="/" data-filter-form>
+    <input type="hidden" name="view" value="{{$d.View}}">
+    <label class="search-field">
+      <svg><use href="#i-search"/></svg>
+      <span class="sr-only">Search your shelf</span>
+      <input type="search" name="q" value="{{$d.Filters.Query}}" placeholder="Search games, designers, mechanics…" autocomplete="off" data-search>
+      <button type="button" class="search-clear" data-search-clear aria-label="Clear search" hidden><svg><use href="#i-close"/></svg></button>
+    </label>
+    <div class="filter-chips" role="group" aria-label="Shelf status">
+      <button type="submit" name="status" value="" class="chip {{if eq $d.Filters.Status ""}}is-active{{end}}">All</button>
+      <button type="submit" name="status" value="unplayed" class="chip {{if eq $d.Filters.Status "unplayed"}}is-active{{end}}">Unplayed</button>
+      <button type="submit" name="status" value="wishlist" class="chip {{if eq $d.Filters.Status "wishlist"}}is-active{{end}}">Wishlist</button>
+      <button type="submit" name="status" value="favorite" class="chip {{if eq $d.Filters.Status "favorite"}}is-active{{end}}">Favourites</button>
+    </div>
+    <label class="select-field">
+      <span class="sr-only">Sort</span>
+      <select name="sort" data-autosubmit>
+        <option value="name" {{if eq $d.Filters.Sort "name"}}selected{{end}}>A–Z</option>
+        <option value="added" {{if eq $d.Filters.Sort "added"}}selected{{end}}>Recently added</option>
+        <option value="plays" {{if eq $d.Filters.Sort "plays"}}selected{{end}}>Most played</option>
+        <option value="rating" {{if eq $d.Filters.Sort "rating"}}selected{{end}}>Your rating</option>
+        <option value="bgg_rating" {{if eq $d.Filters.Sort "bgg_rating"}}selected{{end}}>BGG rating</option>
+        <option value="weight" {{if eq $d.Filters.Sort "weight"}}selected{{end}}>Lightest first</option>
+        <option value="weight_desc" {{if eq $d.Filters.Sort "weight_desc"}}selected{{end}}>Heaviest first</option>
+        <option value="year" {{if eq $d.Filters.Sort "year"}}selected{{end}}>Newest release</option>
+      </select>
+    </label>
+    <button type="button" class="button button--quiet filter-toggle" data-filter-toggle aria-expanded="false" aria-controls="advanced-filters">
+      <svg><use href="#i-sliders"/></svg> Filters{{if $d.Filters.ActiveFilterCount}} <span class="count-dot">{{$d.Filters.ActiveFilterCount}}</span>{{end}}
+    </button>
+    <div class="advanced-filters" id="advanced-filters" hidden>
+      <label><span>Players</span><input type="number" name="players" min="1" max="20" value="{{if $d.Filters.Players}}{{$d.Filters.Players}}{{end}}" placeholder="Any"></label>
+      <label><span>Max minutes</span><input type="number" name="max_time" min="5" max="600" step="5" value="{{if $d.Filters.MaxPlaytime}}{{$d.Filters.MaxPlaytime}}{{end}}" placeholder="Any"></label>
+      <label><span>Weight from</span><input type="number" name="min_weight" min="1" max="5" step="0.1" value="{{if $d.Filters.MinWeight}}{{$d.Filters.MinWeight}}{{end}}" placeholder="1.0"></label>
+      <label><span>Weight to</span><input type="number" name="max_weight" min="1" max="5" step="0.1" value="{{if $d.Filters.MaxWeight}}{{$d.Filters.MaxWeight}}{{end}}" placeholder="5.0"></label>
+      <label><span>Category</span><select name="category"><option value="">Any</option>{{range $d.Facets.Categories}}<option value="{{.}}" {{if eq $.Data.Filters.Category .}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+      <label><span>Mechanic</span><select name="mechanic"><option value="">Any</option>{{range $d.Facets.Mechanics}}<option value="{{.}}" {{if eq $.Data.Filters.Mechanic .}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+      <div class="advanced-actions">
+        <button class="button button--primary button--small" type="submit">Apply filters</button>
+        <a class="text-link" href="/">Clear all</a>
+      </div>
+    </div>
+  </form>
+
+  <div id="shelf-results" aria-live="polite" aria-busy="false">
+    {{template "shelf_results" $d}}
+  </div>
+</section>
+{{end}}

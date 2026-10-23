@@ -1,0 +1,56 @@
+{{define "content"}}
+{{$p := .Data.Payload}}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">E-ink companion</p>
+    <h1 class="display display--compact">TRMNL preview<span class="display-dot">.</span></h1>
+    <p class="lede">Exactly 800×480, tuned for a slow, monochrome screen. The live feed lives at <code>/api/v1/trmnl</code>.</p>
+  </div>
+  <a class="button button--ghost" href="/settings#trmnl-title">Feed settings</a>
+</section>
+
+<div class="trmnl-stage">
+  <article class="trmnl-frame" aria-label="TRMNL display preview">
+    <header class="trmnl-head">
+      <div>
+        <p class="trmnl-kicker">The Shelf · {{$p.Date}}</p>
+        <h2>Today at the table</h2>
+      </div>
+      <div class="trmnl-counts">
+        <span><strong>{{$p.Stats.Owned}}</strong> owned</span>
+        <span><strong>{{$p.Stats.Unplayed}}</strong> unplayed</span>
+        <span><strong>{{$p.Stats.PlaysThisYear}}</strong> plays this year</span>
+      </div>
+    </header>
+    <div class="trmnl-body">
+      {{if $p.Pick}}
+      <section class="trmnl-pick">
+        <img src="{{$p.Pick.CoverURL}}" alt="Cover of {{$p.Pick.Name}}" width="150" height="225">
+        <div>
+          <p class="trmnl-label">The pick</p>
+          <h3>{{$p.Pick.Name}}</h3>
+          <p class="trmnl-meta">{{if $p.Pick.Year}}{{$p.Pick.Year}} · {{end}}{{$p.Pick.Players}}{{if and $p.Pick.Players $p.Pick.Playtime}} · {{end}}{{$p.Pick.Playtime}}</p>
+          <p class="trmnl-reason">{{$p.Pick.Reason}}</p>
+        </div>
+      </section>
+      {{else}}
+      <section class="trmnl-pick trmnl-pick--empty"><p>Sync a collection to choose a game.</p></section>
+      {{end}}
+      <aside class="trmnl-side">
+        <section>
+          <p class="trmnl-label">Recent plays</p>
+          {{if $p.Recent}}
+          <ul class="trmnl-recent">{{range $p.Recent}}<li><span>{{.Name}}</span><time>{{dateShort .PlayedAt}}</time></li>{{end}}</ul>
+          {{else}}<p class="trmnl-muted">No plays yet.</p>{{end}}
+        </section>
+        <section class="trmnl-shame">
+          <p class="trmnl-label">Shelf of shame</p>
+          <p><strong>{{$p.ShelfOfShame.Count}}</strong> waiting{{if $p.ShelfOfShame.LongestWaiting}} · oldest {{$p.ShelfOfShame.LongestWaitDays}} days{{end}}</p>
+          {{if $p.ShelfOfShame.LongestWaiting}}<p class="trmnl-muted">{{$p.ShelfOfShame.LongestWaiting}}</p>{{end}}
+        </section>
+      </aside>
+    </div>
+    <footer class="trmnl-foot"><span>{{.AppName}}</span><span>Updated {{$p.GeneratedAt.Format "15:04"}}</span></footer>
+  </article>
+</div>
+{{end}}

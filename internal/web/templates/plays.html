@@ -1,0 +1,81 @@
+{{define "content"}}
+{{$d := .Data}}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">The play log</p>
+    <h1 class="display display--compact">Times at the table<span class="display-dot">.</span></h1>
+    <p class="lede">{{$d.Total}} {{if eq $d.Total 1}}play{{else}}plays{{end}} recorded{{if $d.Year}} in {{$d.Year}}{{end}}{{if $d.GameID}} for this game{{end}}.</p>
+  </div>
+  <a class="button button--primary" href="/plays/new"><svg><use href="#i-plus"/></svg> Log a play</a>
+</section>
+
+<form class="timeline-filters" method="get" action="/plays">
+  <label class="select-field"><span class="sr-only">Year</span>
+    <select name="year" data-autosubmit>
+      <option value="">All years</option>
+      {{range $d.Years}}<option value="{{.}}" {{if eq $.Data.Year .}}selected{{end}}>{{.}}</option>{{end}}
+    </select>
+  </label>
+  <label class="select-field"><span class="sr-only">Game</span>
+    <select name="game" data-autosubmit>
+      <option value="">All games</option>
+      {{range $d.Games}}<option value="{{.ID}}" {{if eq $.Data.GameID .ID}}selected{{end}}>{{.Name}}</option>{{end}}
+    </select>
+  </label>
+  {{if or $d.Year $d.GameID}}<a class="text-link text-link--small" href="/plays">Clear</a>{{end}}
+</form>
+
+{{if $d.Groups}}
+<div class="timeline">
+  {{range $d.Groups}}
+  <section class="timeline-month">
+    <h2 class="timeline-heading">{{.Month}}</h2>
+    <ol class="timeline-list">
+      {{range .Plays}}
+      <li class="play-entry">
+        <div class="play-date"><span>{{dateShort .PlayedAt}}</span>{{if gt .Quantity 1}}<small>×{{.Quantity}}</small>{{end}}</div>
+        <div class="play-body">
+          <div class="play-title-row">
+            <a class="play-game" href="/games/{{.GameID}}">{{.GameName}}</a>
+            {{if eq .Origin "bgg"}}<span class="origin-badge" title="Imported from BoardGameGeek">BGG</span>{{end}}
+          </div>
+          <p class="play-meta">
+            {{if .Location}}{{.Location}}{{else}}Played{{end}}{{if .Duration}} · {{.Duration}} min{{end}}{{if .Players}} · {{len .Players}} players{{end}}
+          </p>
+          {{if .Players}}
+          <p class="play-players">{{range $i, $p := .Players}}{{if $i}}<span class="dot">·</span>{{end}}<span class="{{if $p.IsWinner}}is-winner{{end}}">{{$p.Name}}{{if $p.IsWinner}} <svg><use href="#i-star"/></svg>{{end}}{{if $p.Score}} <small>{{$p.Score}}</small>{{end}}</span>{{end}}</p>
+          {{end}}
+          {{if .Notes}}<p class="play-notes">{{.Notes}}</p>{{end}}
+        </div>
+        {{if eq .Origin "local"}}
+        <div class="play-actions">
+          <a class="icon-button" href="/plays/{{.ID}}/edit" aria-label="Edit play"><svg><use href="#i-edit"/></svg></a>
+          <form method="post" action="/plays/{{.ID}}/delete" data-confirm="Delete this play?">
+            <input type="hidden" name="csrf_token" value="{{$.CSRF}}">
+            <button class="icon-button icon-button--danger" type="submit" aria-label="Delete play"><svg><use href="#i-trash"/></svg></button>
+          </form>
+        </div>
+        {{end}}
+      </li>
+      {{end}}
+    </ol>
+  </section>
+  {{end}}
+</div>
+
+{{if gt $d.PageCount 1}}
+<nav class="pagination" aria-label="Play pages">
+  {{if $d.PrevURL}}<a class="button button--ghost button--small" href="{{$d.PrevURL}}" rel="prev">Previous</a>{{else}}<span class="button button--ghost button--small is-disabled">Previous</span>{{end}}
+  <span class="page-status">Page {{$d.Page}} of {{$d.PageCount}}</span>
+  {{if $d.NextURL}}<a class="button button--ghost button--small" href="{{$d.NextURL}}" rel="next">Next</a>{{else}}<span class="button button--ghost button--small is-disabled">Next</span>{{end}}
+</nav>
+{{end}}
+{{else}}
+<div class="empty-state">
+  <div class="empty-mark" aria-hidden="true"><svg><use href="#i-dice"/></svg></div>
+  <h3>{{if or $d.Year $d.GameID}}No plays match that{{else}}The table is quiet{{end}}</h3>
+  <p>{{if or $d.Year $d.GameID}}Try another year or game, or clear the filters.{{else}}Log the first play and the shelf starts to remember.{{end}}</p>
+  {{if or $d.Year $d.GameID}}<a class="button button--ghost" href="/plays">Clear filters</a>{{else}}<a class="button button--primary" href="/plays/new">Log a play</a>{{end}}
+</div>
+{{end}}
+{{end}}

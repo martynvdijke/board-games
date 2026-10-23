@@ -1,0 +1,110 @@
+{{define "content"}}
+{{$g := .Data.Game}}
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <a href="/">Shelf</a><svg><use href="#i-chevron"/></svg><span>{{$g.Name}}</span>
+</nav>
+
+<article class="game-detail">
+  <div class="game-detail-cover">
+    <img src="{{$g.CoverURL}}" alt="Cover of {{$g.Name}}" width="360" height="540">
+    <div class="cover-actions">
+      <a class="button button--primary button--wide" href="/plays/new?game={{$g.ID}}"><svg><use href="#i-dice"/></svg> Log a play</a>
+      <a class="button button--ghost button--wide" href="{{$g.BGGURL}}" target="_blank" rel="noopener">View on BGG <svg><use href="#i-external"/></svg></a>
+    </div>
+  </div>
+
+  <div class="game-detail-body">
+    <div class="game-detail-head">
+      <p class="eyebrow">{{if $g.Year}}{{$g.Year}}{{if $g.IsExpansion}} · Expansion{{end}}{{else}}Board game{{end}}</p>
+      <h1 class="display display--compact">{{$g.Name}}</h1>
+      <div class="status-row">
+        {{if $g.Owned}}<span class="status-badge is-owned"><svg><use href="#i-check"/></svg> Owned</span>{{end}}
+        {{if $g.Wishlist}}<span class="status-badge">Wishlist</span>{{end}}
+        {{if $g.WantToPlay}}<span class="status-badge">Want to play</span>{{end}}
+        {{if $g.Preordered}}<span class="status-badge">Preordered</span>{{end}}
+        {{if $g.ForTrade}}<span class="status-badge">For trade</span>{{end}}
+        {{if $g.Favorite}}<span class="status-badge is-favorite"><svg><use href="#i-heart"/></svg> Favourite</span>{{end}}
+      </div>
+    </div>
+
+    <dl class="spec-grid">
+      <div><dt>Players</dt><dd>{{if $g.PlayerLabel}}{{$g.PlayerLabel}}{{else}}—{{end}}</dd></div>
+      <div><dt>Play time</dt><dd>{{if $g.TimeLabel}}{{$g.TimeLabel}}{{else}}—{{end}}</dd></div>
+      <div><dt>Weight</dt><dd>{{if $g.WeightLabel}}{{$g.WeightLabel}}{{if $g.Weight}} <small>{{printf "%.2f" $g.Weight}}</small>{{end}}{{else}}—{{end}}</dd></div>
+      <div><dt>Min age</dt><dd>{{if $g.MinAge}}{{$g.MinAge}}+{{else}}—{{end}}</dd></div>
+      <div><dt>BGG rating</dt><dd>{{if $g.BGGRating}}{{printf "%.1f" $g.BGGRating}}{{else}}—{{end}}{{if $g.BGGRank}} <small>#{{$g.BGGRank}}</small>{{end}}</dd></div>
+      <div><dt>Your rating</dt><dd>{{if $g.UserRating}}<span class="rating-chip rating-chip--inline"><svg><use href="#i-star"/></svg>{{$g.RatingLabel}}</span>{{else}}—{{end}}</dd></div>
+    </dl>
+
+    {{if $g.Description}}
+    <section class="prose">
+      <h2 class="section-title">About the game</h2>
+      <p>{{plain (truncate $g.Description 1400)}}</p>
+    </section>
+    {{end}}
+
+    <div class="credit-grid">
+      {{if $g.Designers}}<div><h3>Designers</h3><p>{{range $i, $v := $g.Designers}}{{if $i}}, {{end}}{{$v}}{{end}}</p></div>{{end}}
+      {{if $g.Publishers}}<div><h3>Publishers</h3><p>{{range $i, $v := $g.Publishers}}{{if $i}}, {{end}}{{$v}}{{end}}</p></div>{{end}}
+      {{if $g.Categories}}<div><h3>Categories</h3><p>{{range $i, $v := $g.Categories}}{{if $i}}, {{end}}{{$v}}{{end}}</p></div>{{end}}
+      {{if $g.Mechanics}}<div><h3>Mechanics</h3><p>{{range $i, $v := $g.Mechanics}}{{if $i}}, {{end}}{{$v}}{{end}}</p></div>{{end}}
+    </div>
+  </div>
+</article>
+
+<div class="detail-columns">
+  <section class="panel" aria-labelledby="shelf-details-title">
+    <div class="panel-head">
+      <h2 id="shelf-details-title" class="section-title">On your shelf</h2>
+      <span class="panel-note">{{$g.PlayLabel}}</span>
+    </div>
+    <form method="post" action="/games/{{$g.ID}}/collection" class="stack">
+      <input type="hidden" name="csrf_token" value="{{.CSRF}}">
+      <div class="check-grid">
+        <label class="check"><input type="checkbox" name="owned" value="1" {{if $g.Owned}}checked{{end}}><span>Owned</span></label>
+        <label class="check"><input type="checkbox" name="wishlist" value="1" {{if $g.Wishlist}}checked{{end}}><span>Wishlist</span></label>
+        <label class="check"><input type="checkbox" name="want_to_play" value="1" {{if $g.WantToPlay}}checked{{end}}><span>Want to play</span></label>
+        <label class="check"><input type="checkbox" name="preordered" value="1" {{if $g.Preordered}}checked{{end}}><span>Preordered</span></label>
+        <label class="check"><input type="checkbox" name="for_trade" value="1" {{if $g.ForTrade}}checked{{end}}><span>For trade</span></label>
+        <label class="check"><input type="checkbox" name="favorite" value="1" {{if $g.Favorite}}checked{{end}}><span>Favourite</span></label>
+      </div>
+      <div class="field-grid">
+        <label class="field"><span>Your rating</span>
+          <select name="user_rating">
+            <option value="none">Not rated</option>
+            {{range $i := seq 20}}<option value="{{half $i}}" {{if ratingSelected $g.UserRating (half $i)}}selected{{end}}>{{half $i}} / 10</option>{{end}}
+          </select>
+        </label>
+        <label class="field"><span>Acquired</span><input type="date" name="acquisition_date" value="{{$g.AcquisitionDate}}"></label>
+        <label class="field"><span>Price paid (£)</span><input type="number" name="price_paid" min="0" step="0.01" value="{{pounds $g.PricePaid}}" placeholder="0.00"></label>
+        <label class="field"><span>Location</span><input type="text" name="location" value="{{$g.Location}}" placeholder="Shelf, box, room…"></label>
+        <label class="field"><span>Condition</span><input type="text" name="condition" value="{{$g.Condition}}" placeholder="Excellent, shelf wear…"></label>
+      </div>
+      <label class="field"><span>Private notes</span><textarea name="notes" rows="4" placeholder="House rules, who loves it, what to remember…">{{$g.Notes}}</textarea></label>
+      <div class="form-actions"><button class="button button--primary" type="submit">Save shelf details</button></div>
+    </form>
+  </section>
+
+  <section class="panel" aria-labelledby="recent-plays-title">
+    <div class="panel-head">
+      <h2 id="recent-plays-title" class="section-title">Recent plays</h2>
+      <a class="text-link text-link--small" href="/plays?game={{$g.ID}}">All plays</a>
+    </div>
+    {{if $g.RecentPlays}}
+    <ol class="mini-timeline">
+      {{range $g.RecentPlays}}
+      <li>
+        <span class="mini-date">{{dateShort .PlayedAt}}</span>
+        <span class="mini-main">{{if .Location}}{{.Location}}{{else}}Played{{end}}{{if .Players}} with {{range $i, $p := .Players}}{{if $i}}, {{end}}{{$p.Name}}{{end}}{{end}}</span>
+      </li>
+      {{end}}
+    </ol>
+    {{else}}
+    <div class="mini-empty">
+      <p>No plays logged yet. {{if $g.Owned}}This one is still on the shelf of shame.{{end}}</p>
+      <a class="text-link" href="/plays/new?game={{$g.ID}}">Be the first to log it <svg><use href="#i-arrow"/></svg></a>
+    </div>
+    {{end}}
+  </section>
+</div>
+{{end}}

@@ -1,0 +1,103 @@
+{{define "base"}}<!doctype html>
+<html lang="en" data-theme="{{if eq .Theme "dark"}}dark{{else if eq .Theme "light"}}light{{else}}system{{end}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{if .Title}}{{.Title}} · {{end}}{{.AppName}}</title>
+  <meta name="description" content="A warm, quiet home for your board game collection, plays, and shelf of shame.">
+  <meta name="theme-color" content="#F7F2E8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#14120F" media="(prefers-color-scheme: dark)">
+  <meta name="csrf-token" content="{{.CSRF}}">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  {{range assetCSS "src/main.ts"}}<link rel="stylesheet" href="{{.}}">{{end}}
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem('shelf-theme');
+        if (theme === 'light' || theme === 'dark') {
+          document.documentElement.dataset.theme = theme;
+          localStorage.setItem('shelf-theme', theme);
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <script type="module" src="{{asset "src/main.ts"}}"></script>
+  {{if and .UmamiURL .UmamiWebsiteID}}<script defer src="{{.UmamiURL}}/script.js" data-website-id="{{.UmamiWebsiteID}}"></script>{{end}}
+</head>
+<body>
+  <svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="i-shelf" viewBox="0 0 24 24"><path d="M4 4.5h4v15H4zM10 4.5h4v15h-4zM16.2 5.4l3.8-1 3.1 14.6-3.9 1z"/></symbol>
+    <symbol id="i-dice" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="8.5" cy="15.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-sync" viewBox="0 0 24 24"><path d="M20 7h-5V2M4 17h5v5M20 7a8 8 0 0 0-13.6-2M4 17a8 8 0 0 0 13.6 2"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h9M17 18h3"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="15" cy="18" r="2"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 5.2a3.5 3.5 0 0 1 0 6.6M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9z"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 11v6M14 11v6"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 3h7v7M10 14 21 3M21 14v7H3V3h7"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5V5a2 2 0 0 1 2-2h14v14H6.5A2.5 2.5 0 0 0 4 19.5z"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></symbol>
+  </svg>
+
+  {{if .User}}
+  <header class="site-header">
+    <a class="brand" href="/">
+      <span class="brand-mark" aria-hidden="true">S</span>
+      <span class="brand-name">{{.AppName}}</span>
+    </a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="/" {{if eq .Active "shelf"}}aria-current="page"{{end}}><svg><use href="#i-shelf"/></svg><span>Shelf</span></a>
+      <a href="/plays" {{if eq .Active "plays"}}aria-current="page"{{end}}><svg><use href="#i-dice"/></svg><span>Play log</span></a>
+      <a href="/stats" {{if eq .Active "stats"}}aria-current="page"{{end}}><svg><use href="#i-chart"/></svg><span>Stats</span></a>
+      <a href="/settings" {{if eq .Active "settings"}}aria-current="page"{{end}}><svg><use href="#i-settings"/></svg><span>Settings</span></a>
+    </nav>
+    <div class="header-actions">
+      <button class="icon-button theme-toggle" type="button" data-theme-toggle aria-label="Switch theme" title="Switch theme">
+        <svg class="icon-sun"><use href="#i-sun"/></svg><svg class="icon-moon"><use href="#i-moon"/></svg>
+      </button>
+      <a class="avatar" href="/settings" title="{{.User.Name}}">{{initials .User.Name}}</a>
+    </div>
+  </header>
+  {{end}}
+
+  <main class="{{if .User}}page-shell{{else}}page-shell page-shell--bare{{end}}" id="main">
+    {{template "content" .}}
+  </main>
+
+  {{if .User}}
+  <nav class="mobile-nav" aria-label="Main">
+    <a href="/" {{if eq .Active "shelf"}}aria-current="page"{{end}}><svg><use href="#i-shelf"/></svg><span>Shelf</span></a>
+    <a href="/plays" {{if eq .Active "plays"}}aria-current="page"{{end}}><svg><use href="#i-dice"/></svg><span>Plays</span></a>
+    <a href="/stats" {{if eq .Active "stats"}}aria-current="page"{{end}}><svg><use href="#i-chart"/></svg><span>Stats</span></a>
+    <a href="/settings" {{if eq .Active "settings"}}aria-current="page"{{end}}><svg><use href="#i-settings"/></svg><span>Settings</span></a>
+  </nav>
+  <footer class="site-footer">
+    <p>{{.AppName}} · a quiet home for games you actually play.</p>
+    <p><a href="/api/docs">API</a> · <a href="/trmnl/preview">TRMNL preview</a> · <a href="https://boardgamegeek.com" rel="noopener">BoardGameGeek</a></p>
+  </footer>
+  {{end}}
+
+  {{if .Flash}}
+  <div class="toast toast--{{.FlashKind}}" role="status" data-toast>
+    <svg><use href="#i-{{if eq .FlashKind "error"}}close{{else}}check{{end}}"/></svg>
+    <span>{{.Flash}}</span>
+    <button type="button" data-toast-close aria-label="Dismiss"><svg><use href="#i-close"/></svg></button>
+  </div>
+  {{end}}
+</body>
+</html>
+{{end}}

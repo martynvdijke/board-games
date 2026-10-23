@@ -1,0 +1,137 @@
+{{define "content"}}
+{{$d := .Data}}{{$s := $d.Settings}}{{$latest := ""}}{{if $d.Runs}}{{$latest = index $d.Runs 0}}{{end}}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">The back room</p>
+    <h1 class="display display--compact">Settings<span class="display-dot">.</span></h1>
+    <p class="lede">Connect the collection, choose how it looks, and make tokens for the things that ask.</p>
+  </div>
+</section>
+
+<div class="settings-grid">
+  <section class="panel" id="sync" aria-labelledby="bgg-title">
+    <div class="panel-head">
+      <h2 id="bgg-title" class="section-title">BoardGameGeek</h2>
+      {{if $s.BGGVerifiedAt}}<span class="status-badge is-owned"><svg><use href="#i-check"/></svg> Verified</span>{{else}}<span class="status-badge">Not connected</span>{{end}}
+    </div>
+    <p class="panel-copy">Pull your public collection, ratings, and play history from BGG. Sync is read-only in this version — plays and ratings you add here stay here.</p>
+    <form method="post" action="/settings/bgg" class="stack">
+      <input type="hidden" name="csrf_token" value="{{.CSRF}}">
+      <label class="field"><span>BGG username</span><input type="text" name="bgg_username" value="{{$s.BGGUsername}}" placeholder="your-bgg-handle" autocomplete="off"></label>
+      <div class="field-grid">
+        <label class="field"><span>Automatic sync</span>
+          <select name="bgg_sync_interval">
+            <option value="21600" {{if eq $s.SyncIntervalSeconds 21600}}selected{{end}}>Every 6 hours</option>
+            <option value="43200" {{if eq $s.SyncIntervalSeconds 43200}}selected{{end}}>Every 12 hours</option>
+            <option value="86400" {{if eq $s.SyncIntervalSeconds 86400}}selected{{end}}>Daily</option>
+            <option value="172800" {{if eq $s.SyncIntervalSeconds 172800}}selected{{end}}>Every 2 days</option>
+            <option value="604800" {{if eq $s.SyncIntervalSeconds 604800}}selected{{end}}>Weekly</option>
+          </select>
+        </label>
+        <label class="check check--card"><input type="checkbox" name="bgg_sync_enabled" value="1" {{if $s.SyncEnabled}}checked{{end}}><span><strong>Scheduled sync</strong><small>Keep the shelf up to date quietly.</small></span></label>
+      </div>
+      <p class="fine-print">Private BGG collections aren't supported. Your username is public information on BGG.</p>
+      <div class="form-actions"><button class="button button--primary" type="submit">Save connection</button></div>
+    </form>
+
+    <div class="sync-box" data-sync-status data-status="{{if $latest}}{{$latest.Status}}{{else}}never{{end}}" data-running="{{if and $latest (eq $latest.Status "running")}}true{{else}}false{{end}}">
+      <div class="sync-box-head">
+        <h3>Last sync</h3>
+        <span class="sync-pill" data-sync-pill>{{if not $latest}}Never run{{else}}{{$latest.Status}}{{end}}</span>
+      </div>
+      {{if $latest}}{{$r := $latest}}
+      <p class="sync-detail" data-sync-detail>{{if $r.Phase}}Phase: {{$r.Phase}} · {{end}}{{$r.CollectionCount}} collection · {{$r.ThingsCount}} enriched · {{$r.PlaysCount}} plays{{if $r.Error}} · {{$r.Error}}{{end}}</p>
+      {{else}}<p class="sync-detail" data-sync-detail>Connect a username, then start the first sync.</p>{{end}}
+      <div class="sync-actions">
+        <form method="post" action="/settings/sync" data-sync-form>
+          <input type="hidden" name="csrf_token" value="{{.CSRF}}">
+          <button class="button button--primary button--small" type="submit" {{if not $s.BGGUsername}}disabled{{end}}><svg><use href="#i-sync"/></svg> Sync now</button>
+        </form>
+        <a class="text-link text-link--small" href="/settings">Refresh status</a>
+      </div>
+    </div>
+
+    {{if $d.Runs}}
+    <details class="runs">
+      <summary>Recent sync runs</summary>
+      <table class="data-table">
+        <thead><tr><th>Started</th><th>Status</th><th>Result</th></tr></thead>
+        <tbody>{{range $d.Runs}}<tr><td>{{dateShort .StartedAt}}</td><td><span class="run-status run-status--{{.Status}}">{{.Status}}</span></td><td>{{.CollectionCount}} games · {{.PlaysCount}} plays{{if .Error}} · {{.Error}}{{end}}</td></tr>{{end}}</tbody>
+      </table>
+    </details>
+    {{end}}
+  </section>
+
+  <section class="panel" aria-labelledby="appearance-title">
+    <div class="panel-head"><h2 id="appearance-title" class="section-title">Appearance</h2></div>
+    <p class="panel-copy">Warm paper in daylight, deep ink after dark. Follow the system or choose one.</p>
+    <form method="post" action="/settings/theme" class="theme-options" data-theme-form>
+      <input type="hidden" name="csrf_token" value="{{.CSRF}}">
+      <button type="submit" name="theme" value="system" class="theme-choice {{if eq $s.Theme "system"}}is-active{{end}}" data-theme-choice="system"><span class="theme-preview theme-preview--system"></span><span>System</span></button>
+      <button type="submit" name="theme" value="light" class="theme-choice {{if eq $s.Theme "light"}}is-active{{end}}" data-theme-choice="light"><span class="theme-preview theme-preview--light"></span><span>Light</span></button>
+      <button type="submit" name="theme" value="dark" class="theme-choice {{if eq $s.Theme "dark"}}is-active{{end}}" data-theme-choice="dark"><span class="theme-preview theme-preview--dark"></span><span>Dark</span></button>
+    </form>
+  </section>
+
+  <section class="panel" aria-labelledby="account-title">
+    <div class="panel-head"><h2 id="account-title" class="section-title">Account</h2></div>
+    <dl class="account-list">
+      <div><dt>Name</dt><dd>{{.User.Name}}</dd></div>
+      <div><dt>Email</dt><dd>{{.User.Email}}</dd></div>
+      <div><dt>Role</dt><dd>{{.User.Role}}</dd></div>
+      {{if .User.LastLoginAt}}<div><dt>Last sign-in</dt><dd>{{dateShort .User.LastLoginAt}}</dd></div>{{end}}
+    </dl>
+    <form method="post" action="/logout">
+      <input type="hidden" name="csrf_token" value="{{.CSRF}}">
+      <button class="button button--ghost" type="submit">Sign out</button>
+    </form>
+  </section>
+
+  <section class="panel" id="tokens" aria-labelledby="tokens-title">
+    <div class="panel-head"><h2 id="tokens-title" class="section-title">API tokens</h2><a class="text-link text-link--small" href="{{$d.DocsURL}}">API docs <svg><use href="#i-external"/></svg></a></div>
+    <p class="panel-copy">Personal tokens start with <code>bg_</code>. Use them for the REST API and the TRMNL feed. Treat them like passwords.</p>
+    {{if $d.NewToken}}
+    <div class="token-reveal" role="status">
+      <p><strong>{{$d.NewTokenName}}</strong> is ready. Copy it now — it won't be shown again.</p>
+      <div class="copy-row"><input type="text" readonly value="{{$d.NewToken}}" data-copy-value aria-label="New API token"><button class="button button--primary button--small" type="button" data-copy><svg><use href="#i-copy"/></svg> Copy</button></div>
+    </div>
+    {{end}}
+    <form method="post" action="/settings/tokens" class="stack token-form">
+      <input type="hidden" name="csrf_token" value="{{.CSRF}}">
+      <div class="field-grid">
+        <label class="field"><span>Token name</span><input type="text" name="name" placeholder="TRMNL display" required></label>
+        <div class="field"><span>Scopes</span>
+          <div class="scope-row">
+            <label class="check check--inline"><input type="checkbox" name="scope_read" value="1" checked><span>Read</span></label>
+            <label class="check check--inline"><input type="checkbox" name="scope_write" value="1"><span>Write</span></label>
+            <label class="check check--inline"><input type="checkbox" name="scope_trmnl" value="1"><span>TRMNL</span></label>
+          </div>
+        </div>
+      </div>
+      <div class="form-actions"><button class="button button--primary button--small" type="submit"><svg><use href="#i-plus"/></svg> Create token</button></div>
+    </form>
+    {{if $d.Tokens}}
+    <ul class="token-list">
+      {{range $d.Tokens}}
+      <li>
+        <div><strong>{{.Name}}</strong><span class="token-meta">{{.Prefix}}… · {{join .Scopes ", "}}{{if .LastUsedAt}} · used {{dateShort .LastUsedAt}}{{end}}</span></div>
+        {{if .RevokedAt}}<span class="status-badge">Revoked</span>{{else}}
+        <form method="post" action="/settings/tokens/{{.ID}}/revoke" data-confirm="Revoke this token? Anything using it will stop working.">
+          <input type="hidden" name="csrf_token" value="{{$.CSRF}}">
+          <button class="text-button text-button--danger" type="submit">Revoke</button>
+        </form>
+        {{end}}
+      </li>
+      {{end}}
+    </ul>
+    {{else}}<p class="panel-empty">No tokens yet.</p>{{end}}
+  </section>
+
+  <section class="panel" aria-labelledby="trmnl-title">
+    <div class="panel-head"><h2 id="trmnl-title" class="section-title">TRMNL</h2></div>
+    <p class="panel-copy">An 800×480 e-ink view of your stats, a daily pick, recent plays, and the shelf of shame. Point TRMNL at the feed with a token that has the <code>trmnl</code> scope.</p>
+    <div class="endpoint-row"><code>GET {{.BaseURL}}/api/v1/trmnl</code></div>
+    <div class="form-actions"><a class="button button--ghost" href="/trmnl/preview">Open preview</a></div>
+  </section>
+</div>
+{{end}}

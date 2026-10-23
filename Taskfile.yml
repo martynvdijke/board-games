@@ -1,0 +1,89 @@
+version: '3'
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list
+
+  install:
+    desc: Install Go, Node, and Playwright dependencies
+    cmds:
+      - go mod download
+      - npm install
+      - npx playwright install --with-deps chromium
+      - task: build:frontend
+
+  fmt:
+    desc: Format Go sources
+    cmds:
+      - gofmt -w ./cmd ./internal
+
+  lint:
+    desc: Run go vet and TypeScript type checking
+    cmds:
+      - go vet ./...
+      - npm run typecheck
+
+  test:
+    desc: Run Go unit and integration tests
+    cmds:
+      - go test ./...
+
+  test:web:
+    desc: Run frontend unit tests with Vitest
+    cmds:
+      - npm test
+
+  test:e2e:
+    desc: Run the Playwright suite against a seeded fake-auth server
+    cmds:
+      - npm run build
+      - npx playwright test
+
+  build:frontend:
+    desc: Build the Vite assets embedded in the Go binary
+    cmds:
+      - npm run build
+
+  build:
+    desc: Build the production binary
+    cmds:
+      - task: build:frontend
+      - go build -trimpath -o bin/shelf ./cmd/server
+
+  run:
+    desc: Run the server locally
+    cmds:
+      - go run ./cmd/server
+
+  seed:
+    desc: Fill a local database with demo games and plays
+    cmds:
+      - go run ./cmd/seed -db ./data/boardgames.db
+
+  fakebgg:
+    desc: Run a fake BoardGameGeek XML API on :6291
+    cmds:
+      - go run ./cmd/fakebgg -addr :6291
+
+  check:
+    desc: Full local gate before pushing
+    cmds:
+      - test -z "$(gofmt -l ./cmd ./internal)"
+      - go vet ./...
+      - go test ./...
+      - npm run typecheck
+      - npm test
+      - task: test:e2e
+      - task: build
+
+  docker:build:
+    desc: Build the production container image
+    cmds:
+      - docker build --build-arg VERSION=${VERSION:-local} -t the-shelf:local .
+
+  clean:
+    desc: Remove build and test artifacts
+    cmds:
+      - rm -rf bin internal/web/static/assets internal/web/static/.vite test-results playwright-report .e2e

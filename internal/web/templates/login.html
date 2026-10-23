@@ -1,0 +1,32 @@
+{{define "content"}}
+<section class="login">
+  <div class="login-panel">
+    <div class="login-intro">
+      <a class="brand brand--large" href="/"><span class="brand-mark">S</span><span class="brand-name">{{.AppName}}</span></a>
+      <p class="eyebrow">Your collection, considered</p>
+      <h1 class="display">Every game.<br>One quiet shelf.</h1>
+      <p class="lede">A warm home for the games you own, the plays you remember, and the ones still waiting for their first outing.</p>
+      <div class="login-art" aria-hidden="true">
+        <div class="spine spine--1"></div>
+        <div class="spine spine--2"></div>
+        <div class="spine spine--3"></div>
+        <div class="spine spine--4"></div>
+        <div class="spine spine--5"></div>
+      </div>
+    </div>
+    <div class="login-card">
+      <div class="login-card-head">
+        <p class="eyebrow">Welcome back</p>
+        <button class="icon-button theme-toggle" type="button" data-theme-toggle aria-label="Switch theme">
+          <svg class="icon-sun"><use href="#i-sun"/></svg><svg class="icon-moon"><use href="#i-moon"/></svg>
+        </button>
+      </div>
+      <h2>Sign in to your shelf</h2>
+      <p class="muted">Use the same account you use for the rest of your tools.</p>
+      {{if .Data.Error}}<div class="callout callout--danger" role="alert">{{.Data.Error}}</div>{{end}}
+      <a class="button button--primary button--wide" href="/auth/login{{if .Data.Next}}?next={{urlquery .Data.Next}}{{end}}">Continue with SSO <svg><use href="#i-arrow"/></svg></a>
+      <p class="fine-print">Your collection is private. BoardGameGeek is read-only in this version; plays and ratings stay local.</p>
+    </div>
+  </div>
+</section>
+{{end}}
