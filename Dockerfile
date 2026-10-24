@@ -17,7 +17,7 @@ COPY . .
 COPY --from=frontend /src/internal/web/static ./internal/web/static
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/shelf ./cmd/server
 
-FROM alpine:3.22
+FROM alpine:3.24
 ARG VERSION=dev
 RUN apk add --no-cache ca-certificates tzdata && \
     addgroup -S shelf && adduser -S -G shelf -h /app shelf && \
