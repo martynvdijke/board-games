@@ -125,6 +125,28 @@ recent plays, and the shelf of shame. The token needs the `trmnl` scope. A
 pixel-exact preview is at `/trmnl/preview`, and all image URLs are absolute and
 proxy-aware.
 
+## Android companion
+
+A Flutter companion app lives in [`mobile/`](mobile/). It signs in with a
+personal API token (create one under **Settings → API tokens**) and offers the
+shelf, game details, play logging, statistics, shelf edits, sync progress, and
+the same warm visual language.
+
+Download `the-shelf-<version>-android.apk` from a GitHub release, or build it:
+
+```sh
+cd mobile
+flutter pub get
+flutter build apk --release
+adb install build/app/outputs/flutter-apk/app-release.apk
+```
+
+Release builds need Java 17. Without a `mobile/android/key.properties` the APK
+is debug-signed, which is fine for sideloading but not for store distribution.
+The app supports optional OpenTelemetry (OTLP/HTTP) and Umami export via
+compile-time dart-defines. See [docs/mobile.md](docs/mobile.md) for signing,
+connection, telemetry, and the privacy-safe analytics event list.
+
 ## BoardGameGeek limits
 
 BoardGameGeek's XML API2 has **no official write API**. The Shelf therefore:

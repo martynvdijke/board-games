@@ -75,8 +75,28 @@ tasks:
       - go test ./...
       - npm run typecheck
       - npm test
+      - task: mobile:check
       - task: test:e2e
       - task: build
+
+  mobile:install:
+    desc: Install Flutter dependencies
+    dir: mobile
+    cmds:
+      - flutter pub get
+
+  mobile:check:
+    desc: Analyze and test the Android companion app
+    dir: mobile
+    cmds:
+      - flutter analyze
+      - flutter test
+
+  mobile:build:
+    desc: Build the release APK (requires Java 17)
+    dir: mobile
+    cmds:
+      - flutter build apk --release --dart-define=APP_VERSION=${VERSION:-1.0.0}
 
   docker:build:
     desc: Build the production container image

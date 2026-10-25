@@ -23,6 +23,8 @@ task fakebgg       # fake BGG API at :6291
 task test          # go test ./...
 task test:web      # vitest
 task test:e2e      # frontend build + playwright (fresh seeded DB)
+task mobile:check  # Flutter analyze + tests
+task mobile:build  # release APK (Java 17)
 task check         # full gate
 ```
 
@@ -84,6 +86,8 @@ present.
 - Go: table-driven tests, `httptest` for BGG and API, in-memory SQLite via
   `db.OpenMemory`.
 - Frontend: Vitest for pure helpers in `web/src/*.test.ts`.
+- Mobile: Flutter analyze and widget/unit tests under `mobile/test`; the
+  companion uses Riverpod 3 and stores credentials in secure storage.
 - E2E: Playwright with fake auth and a fresh seeded DB. The suite runs serially
   because the sync test intentionally replaces the collection; keep destructive
   tests last (`z-sync.spec.ts`).

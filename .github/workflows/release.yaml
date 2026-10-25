@@ -88,14 +88,79 @@ jobs:
           docker push ghcr.io/martynvdijke/board-games:latest
           docker push ghcr.io/martynvdijke/board-games:"$VERSION"
 
+  android:
+    name: Build Android APK
+    needs: release
+    if: needs.release.outputs.new_release_published == 'true' && needs.release.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Java
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version-file: .fvmrc
+          cache: true
+
+      - name: Install Android dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Configure release signing
+        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' }}
+        working-directory: mobile/android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > upload-keystore.jks
+          cat > key.properties <<PROPERTIES
+          storeFile=$GITHUB_WORKSPACE/mobile/android/upload-keystore.jks
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          PROPERTIES
+
+      - name: Build APK
+        working-directory: mobile
+        env:
+          VERSION: ${{ needs.release.outputs.new_release_version }}
+        run: |
+          flutter build apk --release \
+            --build-name="$VERSION" \
+            --build-number="${{ github.run_number }}" \
+            --dart-define=APP_VERSION="$VERSION"
+
+      - name: Attach APK to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.release.outputs.new_release_version }}
+        run: |
+          mv mobile/build/app/outputs/flutter-apk/app-release.apk "the-shelf-${VERSION}-android.apk"
+          gh release upload "v${VERSION}" "the-shelf-${VERSION}-android.apk" --clobber
+
   notify:
-    needs: [ci, release]
+    needs: [ci, release, android]
     if: ${{ always() }}
     name: Gotify Notification
     runs-on: ubuntu-latest
     steps:
       - name: Release Published Notification
-        if: needs.ci.result == 'success' && needs.release.result == 'success' && needs.release.outputs.new_release_published == 'true'
+        if: needs.ci.result == 'success' && needs.release.result == 'success' && needs.android.result == 'success' && needs.release.outputs.new_release_published == 'true'
         uses: eikendev/gotify-action@cb63800546f25c393ab96f09d12a094138c514f4 # master
         with:
           gotify_api_base: ${{ secrets.GOTIFY_API_BASE }}
@@ -113,7 +178,7 @@ jobs:
           notification_message: 'Workflow passed but no new release was published.'
 
       - name: Failure Notification
-        if: needs.ci.result != 'success' || needs.release.result != 'success'
+        if: needs.ci.result != 'success' || needs.release.result != 'success' || (needs.android.result != 'success' && needs.android.result != 'skipped')
         uses: eikendev/gotify-action@cb63800546f25c393ab96f09d12a094138c514f4 # master
         with:
           gotify_api_base: ${{ secrets.GOTIFY_API_BASE }}

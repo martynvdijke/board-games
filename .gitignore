@@ -44,3 +44,10 @@ playwright-report/
 *.db
 *.db-wal
 *.db-shm
+
+# Flutter / Android
+mobile/build/
+mobile/.dart_tool/
+mobile/android/key.properties
+mobile/android/*.jks
+mobile/android/*.keystore
