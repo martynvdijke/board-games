@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/martynvdijke/board-games/compare/v1.1.0...v1.1.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **deps:** update dependency cupertino_icons to v2 ([cdf030c](https://github.com/martynvdijke/board-games/commit/cdf030c81c1b9b5e953ed88e36554af87539003f))
+
 # [1.1.0](https://github.com/martynvdijke/board-games/compare/v1.0.2...v1.1.0) (2026-10-25)
 
 
