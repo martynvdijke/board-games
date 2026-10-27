@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/martynvdijke/board-games/compare/v1.1.2...v1.2.0) (2026-10-27)
+
+
+### Features
+
+* **release:** publish android bundles to google play and add emulator e2e ([c54aca4](https://github.com/martynvdijke/board-games/commit/c54aca46523448e0a76909d8ccc92aa644250fbf))
+
 ## [1.1.2](https://github.com/martynvdijke/board-games/compare/v1.1.1...v1.1.2) (2026-10-26)
 
 ## [1.1.1](https://github.com/martynvdijke/board-games/compare/v1.1.0...v1.1.1) (2026-10-26)
