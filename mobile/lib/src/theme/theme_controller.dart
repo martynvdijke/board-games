@@ -13,6 +13,7 @@ class ThemeController extends Notifier<ThemeMode> {
   ThemeMode build() {
     Future<void>(() async {
       final value = await ref.read(authStorageProvider).readTheme();
+      if (!ref.mounted) return;
       final mode = switch (value) {
         'light' => ThemeMode.light,
         'dark' => ThemeMode.dark,
