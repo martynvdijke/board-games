@@ -11,14 +11,17 @@ final themeControllerProvider = NotifierProvider<ThemeController, ThemeMode>(
 class ThemeController extends Notifier<ThemeMode> {
   @override
   ThemeMode build() {
+    var disposed = false;
+    ref.onDispose(() => disposed = true);
     Future<void>(() async {
       final value = await ref.read(authStorageProvider).readTheme();
+      if (disposed) return;
       final mode = switch (value) {
         'light' => ThemeMode.light,
         'dark' => ThemeMode.dark,
         _ => ThemeMode.system,
       };
-      if (mode != state) state = mode;
+      state = mode;
     });
     return ThemeMode.system;
   }
