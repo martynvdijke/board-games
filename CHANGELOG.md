@@ -1,3 +1,10 @@
+## [1.3.3](https://github.com/martynvdijke/board-games/compare/v1.3.2...v1.3.3) (2026-10-31)
+
+
+### Bug Fixes
+
+* **mobile:** guard theme provider state updates after disposal ([#12](https://github.com/martynvdijke/board-games/issues/12)) ([337f6c0](https://github.com/martynvdijke/board-games/commit/337f6c056ceebb1bc1156f22ccf1b95babe7b9ff))
+
 ## [1.3.2](https://github.com/martynvdijke/board-games/compare/v1.3.1...v1.3.2) (2026-10-31)
 
 
