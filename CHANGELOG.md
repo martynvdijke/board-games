@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/martynvdijke/board-games/compare/v1.2.1...v1.3.0) (2026-10-31)
+
+
+### Features
+
+* **mobile:** default to board-games.vandijke.xyz and offer self-hosted option ([7c50a61](https://github.com/martynvdijke/board-games/commit/7c50a610a2f8422c1cdf6ac5bfd39bae988b25a6))
+
 ## [1.2.1](https://github.com/martynvdijke/board-games/compare/v1.2.0...v1.2.1) (2026-10-27)
 
 # [1.2.0](https://github.com/martynvdijke/board-games/compare/v1.1.2...v1.2.0) (2026-10-27)
