@@ -226,7 +226,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Use the address of your self-hosted Shelf and a personal API token.',
+                              'Use the default instance below, or enter another self-hosted Board Games server.',
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(
                                     color: scheme.onSurfaceVariant,

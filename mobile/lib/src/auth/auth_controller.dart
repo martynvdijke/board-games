@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
 import '../api/api_exception.dart';
 import '../api/models.dart';
+import '../config.dart';
 import 'storage.dart';
 
 enum AuthStatus { loading, unauthenticated, authenticated }
@@ -13,7 +14,7 @@ class AuthState {
   const AuthState({
     required this.status,
     this.profile,
-    this.serverUrl = '',
+    this.serverUrl = defaultServerUrl,
     this.token = '',
     this.error = '',
   });
@@ -60,7 +61,10 @@ class AuthController extends Notifier<AuthState> {
     final server = await _storage.readServer();
     final token = await _storage.readToken();
     if (server == null || server.isEmpty || token == null || token.isEmpty) {
-      state = const AuthState(status: AuthStatus.unauthenticated);
+      state = AuthState(
+        status: AuthStatus.unauthenticated,
+        serverUrl: resolveInitialServerUrl(server),
+      );
       return;
     }
     final client = ApiClient(serverUrl: server, token: token);
@@ -136,7 +140,10 @@ class AuthController extends Notifier<AuthState> {
 
   Future<void> signOut() async {
     await _storage.clear();
-    state = const AuthState(status: AuthStatus.unauthenticated);
+    state = const AuthState(
+      status: AuthStatus.unauthenticated,
+      serverUrl: defaultServerUrl,
+    );
   }
 
   void clearError() {
