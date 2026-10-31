@@ -1,3 +1,14 @@
+## [1.3.2](https://github.com/martynvdijke/board-games/compare/v1.3.1...v1.3.2) (2026-10-31)
+
+
+### Bug Fixes
+
+* **ci:** point android e2e at root .fvmrc ([9804a29](https://github.com/martynvdijke/board-games/commit/9804a29a2ffe7d09cfe8f61f022fc9b8d7d0f056))
+* **ci:** point android e2e flutter setup at root fvmrc ([9cf4294](https://github.com/martynvdijke/board-games/commit/9cf429425c38cad5e2c5d30c48bdf856e011a617))
+* **ci:** point play store flutter setup at root fvmrc ([b0d731b](https://github.com/martynvdijke/board-games/commit/b0d731b03cec2d59d433f41de6aea6f3d926680c))
+* **ci:** use root .fvmrc in Play Store workflow ([728c33c](https://github.com/martynvdijke/board-games/commit/728c33c51726d90b9e5fbeace4156ae26ddaa52b))
+* **deps:** update all non-major dependencies ([3f95c6f](https://github.com/martynvdijke/board-games/commit/3f95c6f9f7de63eb964797e2481cd283869a7e35))
+
 ## [1.3.1](https://github.com/martynvdijke/board-games/compare/v1.3.0...v1.3.1) (2026-10-31)
 
 # [1.3.0](https://github.com/martynvdijke/board-games/compare/v1.2.1...v1.3.0) (2026-10-31)
