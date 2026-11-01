@@ -1,3 +1,10 @@
+## [1.3.4](https://github.com/martynvdijke/board-games/compare/v1.3.3...v1.3.4) (2026-11-01)
+
+
+### Bug Fixes
+
+* **ci:** skip Play Store publish when credentials are missing ([d8edf67](https://github.com/martynvdijke/board-games/commit/d8edf67bada4e93bb66f0f4eb4d6773ce195bd0a))
+
 ## [1.3.3](https://github.com/martynvdijke/board-games/compare/v1.3.2...v1.3.3) (2026-10-31)
 
 
