@@ -554,6 +554,22 @@ func (m *Manager) sessionAuth(r *http.Request, raw string) (*AuthContext, error)
 	return &AuthContext{User: &u, Session: &s, Via: "cookie", CSRFToken: s.CSRFToken, Scopes: []string{"read", "write", "trmnl"}}, nil
 }
 
+// SessionFromRequest resolves a browser session cookie without requiring the
+// caller to be inside LoadSession. It is used by the small number of endpoints
+// that must accept either a browser session or an API token.
+func (m *Manager) SessionFromRequest(r *http.Request) (*AuthContext, error) {
+	c, err := r.Cookie(SessionCookie)
+	if err != nil || c.Value == "" {
+		return nil, ErrUnauthenticated
+	}
+	return m.sessionAuth(r, c.Value)
+}
+
+// ClearSessionCookie removes the browser session cookie.
+func (m *Manager) ClearSessionCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{Name: SessionCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: m.secure, SameSite: http.SameSiteLaxMode})
+}
+
 // Logout deletes the current session and clears the cookie.
 func (m *Manager) Logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(SessionCookie); err == nil && c.Value != "" {

@@ -1,0 +1,39 @@
+{{define "content"}}
+<section class="legal">
+  <p class="eyebrow">Legal</p>
+  <h1>Terms of use</h1>
+  <p class="lede">The short version: record games honestly, be decent to other people, and keep your account secure. Last updated {{.Year}}.</p>
+
+  <h2>Your account</h2>
+  <p>You need an account to use the shelf. Sign-in is handled by the configured OpenID Connect provider (Authelia on this deployment). Keep your provider credentials to yourself and use an address you can receive mail at. You are responsible for activity under your account and for any API tokens you create. If you think someone else has access, revoke the tokens and sign out.</p>
+  <p>You can delete your account at any time from <a href="/account/delete">Delete your account</a>. Administrators may suspend accounts that break these terms.</p>
+
+  <h2>What you post</h2>
+  <p>You keep ownership of your shelf notes, play logs and ratings. By storing them here you give this instance permission to keep and display them to you through the web app, API and any client you authorise. That permission ends when the content is deleted, except for copies already in backups that have not yet rotated.</p>
+  <p>Player names you enter may identify other people. Only record them with their knowledge where the law requires it, and use the removal tool in Settings if someone asks you to stop.</p>
+
+  <h2>What is not allowed</h2>
+  <ul>
+    <li>Scraping, bulk-downloading or reselling other people's data.</li>
+    <li>Automated creation of accounts, plays or tokens, or otherwise evading rate limits.</li>
+    <li>Uploading malware, or probing the service for vulnerabilities without asking first.</li>
+    <li>Impersonating another person or a brand you do not represent.</li>
+    <li>Using the service to store unlawful, hateful or harassing content.</li>
+  </ul>
+
+  <h2>Content from other sources</h2>
+  <p>Game metadata, covers, ratings and imported plays may come from BoardGameGeek and remain subject to BoardGameGeek's terms. That data is shown as it was found and may be incomplete or wrong.</p>
+
+  <h2>Availability and liability</h2>
+  <p>This is a self-hosted instance, offered as it is. It can go down for maintenance, lose data if a backup fails, or shut down entirely. Do not rely on it as the only copy of anything you care about — use <code>GET /api/v1/me/export</code> to keep your own copy.</p>
+  <p>To the extent the law allows, the operator is not liable for indirect or consequential loss arising from use of the instance. Nothing here limits liability that cannot be limited by law, including for death, personal injury or fraud.</p>
+
+  <h2>Governing law</h2>
+  <p>These terms are governed by the law of the country in which the operator of this instance is established, without affecting consumer protections you have where you live.</p>
+
+  <h2>Changes</h2>
+  <p>Material changes are announced in the app before they take effect. Continuing to use the instance after that means you accept the updated terms.</p>
+
+  <p class="muted">See also the <a href="/privacy">privacy policy</a>, which explains what data is stored and how to remove it.</p>
+</section>
+{{end}}

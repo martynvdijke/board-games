@@ -5,7 +5,7 @@ import (
 )
 
 func TestPagesParse(t *testing.T) {
-	pages := []string{"login.html", "overview.html", "game.html", "plays.html", "play_form.html", "stats.html", "settings.html", "trmnl_preview.html", "error.html"}
+	pages := []string{"login.html", "overview.html", "game.html", "plays.html", "play_form.html", "stats.html", "settings.html", "trmnl_preview.html", "error.html", "privacy.html", "terms.html", "account_delete.html"}
 	for _, page := range pages {
 		if _, err := parsePage(page); err != nil {
 			t.Errorf("%s: %v", page, err)

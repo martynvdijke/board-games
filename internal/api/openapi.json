@@ -62,6 +62,91 @@
             "$ref": "#/components/responses/Unauthorized"
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Delete the current account",
+        "description": "Deletes the account, settings, shelf, plays, player names, sessions and API tokens in one transaction. A browser session must also send X-CSRF-Token. The last remaining admin is refused with 409.",
+        "responses": {
+          "200": {
+            "description": "Account deleted"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "description": "The account is the last admin"
+          }
+        }
+      }
+    },
+    "/me/export": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Export your data",
+        "description": "Returns profile, settings, shelf, plays with player names, and API token metadata. Token hashes are never included.",
+        "responses": {
+          "200": {
+            "description": "JSON export",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/players": {
+      "delete": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Remove or anonymise a player name",
+        "description": "A normal user can only change play_players rows in plays they own. An admin may change matching rows across the instance.",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["remove", "anonymise"],
+              "default": "remove"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rows changed"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
       }
     },
     "/games": {

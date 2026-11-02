@@ -1,0 +1,46 @@
+{{define "content"}}
+<section class="legal">
+  <p class="eyebrow">Account</p>
+  <h1>Delete your account</h1>
+  <p class="lede">Deletion is immediate. Your account, shelf and play log are removed the moment you confirm; nothing is held for a waiting period.</p>
+
+  <h2>Delete it yourself</h2>
+  {{if .User}}
+  <p>You are signed in as {{.User.Email}}. Open <a href="/settings#account">Settings → Account</a>, type <strong>DELETE</strong> in the confirmation box and submit the form.</p>
+  {{else}}
+  <p><a href="/login">Sign in</a>, open <a href="/settings#account">Settings → Account</a>, type <strong>DELETE</strong> in the confirmation box and submit the form. <a href="/login">Sign in</a> if you have not already.</p>
+  {{end}}
+  <p>In the Android app the same action lives under Settings → Account → Delete account. It calls <code>DELETE /api/v1/me</code> with the same typed confirmation, then clears the token from the device.</p>
+
+  <h2>If you cannot sign in</h2>
+  {{if .Legal.ContactEmail}}
+  <p>Write to <a href="mailto:{{.Legal.ContactEmail}}">{{.Legal.ContactEmail}}</a> from the address on the account and ask for it to be deleted. Requests are handled within one month, usually much sooner.</p>
+  {{else}}
+  <p>Ask the operator or administrator of this instance to delete the account for you. There is no self-service route that works without signing in.</p>
+  {{end}}
+
+  <h2>What is removed</h2>
+  <ul>
+    <li>Your email address, display name, avatar URL, role metadata and last sign-in time.</li>
+    <li>Your BoardGameGeek username, sync settings, theme and timezone.</li>
+    <li>Every shelf entry, including private notes, location, condition and price paid.</li>
+    <li>Every play you own, including its location, notes and the player-name rows attached to it.</li>
+    <li>Every way into the account: browser sessions and personal API tokens.</li>
+    <li>Sync history associated with the account.</li>
+  </ul>
+  <p>All of this happens in one database transaction. If any step fails, nothing is deleted.</p>
+
+  <h2>What is not removed</h2>
+  <ul>
+    <li><strong>Your Authelia / OpenID Connect account.</strong> The login provider is a separate identity account. Deleting {{.AppName}} does not delete it, and signing in with it again may create a new empty shelf account. Delete the provider account separately if you want that identity removed.</li>
+    <li><strong>Backups taken before deletion.</strong> They may still contain the old data until they rotate out, and are not used to restore an individual account.</li>
+    <li><strong>Server logs and traces</strong> already written, which expire on the operator's retention schedule.</li>
+  </ul>
+  <p>The last remaining admin account cannot be deleted until another admin is promoted, because that would leave the instance unadministrable.</p>
+
+  <h2>If your name appears in someone else's play log</h2>
+  <p>Board game players are stored as free-text names on another person's play. If you are not a user and want your name removed, use the contact address above and tell us the name and, if you know it, the account or approximate date. The operator can remove or anonymise all matching player-name rows. Signed-in users can also remove a name from their own plays under Settings → Privacy controls; that tool never exposes another person's play log.</p>
+
+  <p class="muted">The full detail is in the <a href="/privacy">privacy policy</a>.</p>
+</section>
+{{end}}

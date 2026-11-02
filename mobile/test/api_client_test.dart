@@ -61,8 +61,7 @@ void main() {
     expect(captured.url.queryParameters['limit'], '25');
   });
 
-  test('error envelope becomes a typed exception', () async {
-    final client = ApiClient(
+  test('error envelope becomes a typed exception', () async {    final client = ApiClient(
       serverUrl: 'https://shelf.example.com',
       token: 'bg_test',
       client: MockClient(
@@ -92,5 +91,29 @@ void main() {
             ),
       ),
     );
+  });
+
+  test('deleteAccount sends DELETE /me with the bearer token', () async {
+    late http.Request captured;
+    final client = ApiClient(
+      serverUrl: 'https://shelf.example.com',
+      token: 'bg_test',
+      client: MockClient((request) async {
+        captured = request;
+        return http.Response(
+          jsonEncode({
+            'data': {'deleted': true},
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }),
+    );
+
+    await client.deleteAccount();
+
+    expect(captured.method, 'DELETE');
+    expect(captured.url.path, '/api/v1/me');
+    expect(captured.headers['Authorization'], 'Bearer bg_test');
   });
 }

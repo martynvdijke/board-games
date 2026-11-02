@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"testing"
 
+	"boardgames/internal/account"
 	"boardgames/internal/auth"
 	"boardgames/internal/collection"
 	"boardgames/internal/config"
@@ -61,7 +62,7 @@ func setupAPI(t *testing.T) *fixture {
 	games := collection.NewRepo(database)
 	playRepo := plays.NewRepo(database)
 	handler := &Handler{Config: cfg, Auth: manager, Games: games, Plays: playRepo, DB: database,
-		TRMNL: trmnl.NewService(database, games, playRepo, cfg)}
+		Account: account.New(database), TRMNL: trmnl.NewService(database, games, playRepo, cfg)}
 	return &fixture{handler: handler, db: database, user: user, read: read, write: write, full: full, gameID: gameID}
 }
 

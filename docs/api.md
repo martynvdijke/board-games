@@ -48,6 +48,9 @@ List endpoints take `limit` (1–100, default 24) and `offset` (≥0):
 | Method | Path | Scope | Notes |
 | --- | --- | --- | --- |
 | GET | `/me` | read | Current user and token scopes |
+| GET | `/me/export` | read | JSON copy of profile, settings, shelf, plays and token metadata |
+| DELETE | `/me` | token or session+CSRF | Delete the account and all owned data; last admin gets `409` |
+| DELETE | `/players?name=&mode=` | write | Remove (`remove`) or replace (`anonymise`) a player name; scoped to own plays unless admin |
 | GET | `/games` | read | Filters: `q`, `players`, `max_playtime`, `min_weight`, `max_weight`, `category`, `mechanic`, `status`, `sort` |
 | GET | `/games/{id}` | read | Full game, shelf state, recent plays |
 | PATCH | `/games/{id}` | write | Partial shelf update; send `null` to clear rating/price |

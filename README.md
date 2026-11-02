@@ -189,6 +189,10 @@ All configuration is environment-based. The complete annotated list lives in
 | `METRICS_ENABLED` | `true` | Expose Prometheus metrics at `/metrics` |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | empty | Optional OTLP trace/metric export |
 | `UMAMI_URL` / `UMAMI_WEBSITE_ID` | empty | Optional privacy-friendly analytics |
+| `LEGAL_CONTROLLER_NAME` | app-specific fallback | Controller named on `/privacy`, `/terms`, `/account/delete` |
+| `LEGAL_CONTACT_EMAIL` | empty | Privacy and deletion contact |
+| `LEGAL_CONTACT_ADDRESS` | empty | Optional postal address |
+| `LEGAL_HOSTING_REGION` | `the European Union` | Hosting region shown in the policy |
 | `VERSION` | `dev` | Build/release version shown in logs |
 | `DEV_FAKE_AUTH` | `false` | Local/e2e only; never in production |
 

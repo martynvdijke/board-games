@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"boardgames/internal/account"
 	"boardgames/internal/auth"
 	"boardgames/internal/collection"
 	"boardgames/internal/config"
@@ -30,9 +31,10 @@ import (
 var assets embed.FS
 
 type Handler struct {
-	Config *config.Config
-	Auth   *auth.Manager
-	Games  *collection.Repo
+	Config  *config.Config
+	Auth    *auth.Manager
+	Account *account.Service
+	Games   *collection.Repo
 	Plays  *plays.Repo
 	Sync   *collection.SyncService
 	TRMNL  *trmnl.Service
@@ -46,6 +48,8 @@ func (h *Handler) Routes() http.Handler {
 
 	v1 := http.NewServeMux()
 	v1.Handle("GET /me", auth.RequireScope("read", http.HandlerFunc(h.me)))
+	v1.Handle("GET /me/export", auth.RequireScope("read", http.HandlerFunc(h.exportMe)))
+	v1.Handle("DELETE /players", auth.RequireScope("write", http.HandlerFunc(h.removePlayer)))
 	v1.Handle("GET /games", auth.RequireScope("read", http.HandlerFunc(h.listGames)))
 	v1.Handle("GET /games/{id}", auth.RequireScope("read", http.HandlerFunc(h.getGame)))
 	v1.Handle("PATCH /games/{id}", auth.RequireScope("write", http.HandlerFunc(h.patchGame)))
@@ -62,6 +66,9 @@ func (h *Handler) Routes() http.Handler {
 
 	protected := h.Auth.AuthenticateBearer(h.rateLimit(v1))
 	mux.Handle("/v1/", http.StripPrefix("/v1", protected))
+	// Account deletion accepts either a personal token or a browser session.
+	// The more specific pattern wins over the /v1/ subtree.
+	mux.Handle("DELETE /v1/me", h.rateLimit(http.HandlerFunc(h.deleteMe)))
 	mux.HandleFunc("/", h.notFound)
 	return h.securityHeaders(mux)
 }

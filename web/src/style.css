@@ -724,3 +724,17 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
   .theme-preview { width: 60px; height: 34px; }
   .site-footer { font-size: .72rem; }
 }
+
+/* Public legal pages: readable measure without the signed-in shell. */
+.legal {
+  max-width: 74ch;
+  margin: 0 auto;
+  padding: clamp(2rem, 6vw, 5rem) clamp(1rem, 4vw, 2.5rem) 5rem;
+  line-height: 1.7;
+}
+.legal h1 { margin: .2rem 0 .8rem; }
+.legal h2 { margin: 2.4rem 0 .6rem; font-size: 1.15rem; }
+.legal p, .legal li { color: var(--ink, inherit); }
+.legal ul { padding-left: 1.2rem; display: grid; gap: .45rem; }
+.legal a { color: var(--accent, inherit); text-decoration-thickness: .08em; }
+.legal .muted { margin-top: 2.5rem; color: var(--muted); }

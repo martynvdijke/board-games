@@ -40,6 +40,10 @@ type Config struct {
 	OTELServiceName      string
 	UmamiURL             string
 	UmamiWebsiteID       string
+	LegalControllerName  string
+	LegalContactEmail    string
+	LegalContactAddress  string
+	LegalHostingRegion   string
 	DevFakeAuth          bool
 	DevFakeEmail         string
 	DevFakeName          string
@@ -76,6 +80,10 @@ func Load() (*Config, error) {
 		OTELServiceName:      env("OTEL_SERVICE_NAME", "boardgames"),
 		UmamiURL:             strings.TrimRight(os.Getenv("UMAMI_URL"), "/"),
 		UmamiWebsiteID:       os.Getenv("UMAMI_WEBSITE_ID"),
+		LegalControllerName:  strings.TrimSpace(os.Getenv("LEGAL_CONTROLLER_NAME")),
+		LegalContactEmail:    strings.TrimSpace(os.Getenv("LEGAL_CONTACT_EMAIL")),
+		LegalContactAddress:  strings.TrimSpace(os.Getenv("LEGAL_CONTACT_ADDRESS")),
+		LegalHostingRegion:   env("LEGAL_HOSTING_REGION", "the European Union"),
 		DevFakeAuth:          boolean("DEV_FAKE_AUTH", false),
 		DevFakeEmail:         env("DEV_FAKE_EMAIL", "owner@example.com"),
 		DevFakeName:          env("DEV_FAKE_NAME", "Shelf Owner"),
@@ -175,6 +183,8 @@ func (c *Config) LogValue() slog.Value {
 		slog.Int("bgg_refresh_days", c.BGGRefreshDays),
 		slog.Duration("sync_interval", c.SyncInterval),
 		slog.Bool("metrics_enabled", c.MetricsEnabled),
+		slog.String("legal_controller", c.LegalControllerName),
+		slog.String("legal_contact_email", c.LegalContactEmail),
 		slog.Bool("dev_fake_auth", c.DevFakeAuth),
 		slog.String("timezone", c.Timezone),
 		slog.String("version", c.Version),

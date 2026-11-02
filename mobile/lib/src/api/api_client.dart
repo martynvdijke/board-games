@@ -152,6 +152,10 @@ class ApiClient {
     await _send('DELETE', '/plays/$id', route: '/plays/{id}');
   }
 
+  Future<void> deleteAccount() async {
+    await _send('DELETE', '/me', route: '/me');
+  }
+
   Future<Stats> stats({int? year}) async {
     final data = await _send(
       'GET',

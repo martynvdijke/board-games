@@ -73,7 +73,7 @@
     </form>
   </section>
 
-  <section class="panel" aria-labelledby="account-title">
+  <section class="panel" id="account" aria-labelledby="account-title">
     <div class="panel-head"><h2 id="account-title" class="section-title">Account</h2></div>
     <dl class="account-list">
       <div><dt>Name</dt><dd>{{.User.Name}}</dd></div>
@@ -84,6 +84,34 @@
     <form method="post" action="/logout">
       <input type="hidden" name="csrf_token" value="{{.CSRF}}">
       <button class="button button--ghost" type="submit">Sign out</button>
+    </form>
+  </section>
+
+  <section class="panel" id="privacy-controls" aria-labelledby="privacy-title">
+    <div class="panel-head"><h2 id="privacy-title" class="section-title">Privacy controls</h2></div>
+    <p class="panel-copy">Download a copy of your data, remove a third-party player name from your plays, or close the account. These links are also readable while signed out: <a href="/privacy">privacy policy</a> and <a href="/terms">terms of use</a>.</p>
+    <div class="form-actions">
+      <a class="button button--ghost" href="/api/v1/me/export">Download my data (JSON)</a>
+    </div>
+    <form method="post" action="/settings/players/remove" class="stack">
+      <input type="hidden" name="csrf_token" value="{{.CSRF}}">
+      <div class="field-grid">
+        <label class="field"><span>Player name</span><input type="text" name="name" placeholder="Exact name to remove" required maxlength="200" autocomplete="off"></label>
+        <label class="field"><span>Action</span>
+          <select name="mode">
+            <option value="remove">Remove the name from my plays</option>
+            <option value="anonymise">Replace with “Removed player”</option>
+          </select>
+        </label>
+      </div>
+      <p class="fine-print">Only rows in plays you own are changed. Administrators can apply the same action across the instance.</p>
+      <div class="form-actions"><button class="button button--ghost button--small" type="submit">Remove player name</button></div>
+    </form>
+    <form method="post" action="/settings/account/delete" class="stack" data-confirm="Delete the account, shelf and every play? This cannot be undone.">
+      <input type="hidden" name="csrf_token" value="{{.CSRF}}">
+      <label class="field"><span>Type DELETE to close this account</span><input type="text" name="confirm" placeholder="DELETE" required autocomplete="off"></label>
+      <p class="fine-print">This deletes the account, shelf, plays and API tokens immediately. It does not delete your Authelia / OpenID Connect account.</p>
+      <div class="form-actions"><button class="button button--danger button--small" type="submit">Delete account</button></div>
     </form>
   </section>
 

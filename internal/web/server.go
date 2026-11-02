@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"boardgames/internal/account"
 	"boardgames/internal/auth"
 	"boardgames/internal/collection"
 	"boardgames/internal/config"
@@ -22,6 +23,7 @@ import (
 type Handler struct {
 	Config         *config.Config
 	Auth           *auth.Manager
+	Account        *account.Service
 	Games          *collection.Repo
 	Plays          *plays.Repo
 	Sync           *collection.SyncService
@@ -46,6 +48,7 @@ type Page struct {
 	Year           int
 	UmamiURL       string
 	UmamiWebsiteID string
+	Legal          LegalData
 }
 
 type OverviewData struct {
@@ -172,6 +175,9 @@ func (h *Handler) Routes() http.Handler {
 	mux.Handle("GET /static/", http.StripPrefix("/static/", cacheStatic(http.FileServer(http.FS(StaticFS())))))
 	mux.Handle("GET /media/bgg/", h.Images)
 	mux.HandleFunc("GET /login", h.loginPage)
+	mux.HandleFunc("GET /privacy", h.privacyPage)
+	mux.HandleFunc("GET /terms", h.termsPage)
+	mux.HandleFunc("GET /account/delete", h.accountDeletePage)
 	mux.HandleFunc("GET /auth/login", h.Auth.Login)
 	mux.HandleFunc("GET /auth/callback", h.Auth.Callback)
 	mux.HandleFunc("POST /logout", h.Auth.Logout)
@@ -194,6 +200,8 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("POST /settings/theme", h.requireUser(h.saveTheme))
 	mux.HandleFunc("POST /settings/tokens", h.requireUser(h.createToken))
 	mux.HandleFunc("POST /settings/tokens/{id}/revoke", h.requireUser(h.revokeToken))
+	mux.HandleFunc("POST /settings/account/delete", h.requireUser(h.deleteAccount))
+	mux.HandleFunc("POST /settings/players/remove", h.requireUser(h.removePlayerName))
 	mux.HandleFunc("GET /trmnl/preview", h.requireUser(h.trmnlPreview))
 
 	return h.Auth.LoadSession(h.securityHeaders(h.Auth.RequireCSRF(mux)))
@@ -238,7 +246,7 @@ func (h *Handler) loginPage(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) page(r *http.Request, title, active string, data any) Page {
 	p := Page{Title: title, AppName: h.Config.AppName, BaseURL: h.Config.BaseURL, Active: active, Year: time.Now().Year(),
-		UmamiURL: h.Config.UmamiURL, UmamiWebsiteID: h.Config.UmamiWebsiteID}
+		UmamiURL: h.Config.UmamiURL, UmamiWebsiteID: h.Config.UmamiWebsiteID, Legal: h.legalData()}
 	if a := auth.FromContext(r.Context()); a != nil && a.User != nil {
 		p.User = a.User
 		p.CSRF = a.CSRFToken

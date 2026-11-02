@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../api/api_client.dart';
 import '../api/api_exception.dart';
 import '../api/models.dart';
 import '../auth/auth_controller.dart';
@@ -95,6 +97,46 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
     if (confirmed == true) {
       await ref.read(authControllerProvider.notifier).signOut();
+    }
+  }
+
+  Future<void> _openLegal(String path) async {
+    final server = ref.read(authControllerProvider).serverUrl;
+    final url = Uri.tryParse('${ApiClient.normalizeServerUrl(server)}$path');
+    if (url == null) return;
+    final opened = await launchUrl(url, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open $url')),
+      );
+    }
+  }
+
+  Future<void> _deleteAccount() async {
+    final profile = ref.read(authProfileProvider);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => _DeleteAccountDialog(email: profile?.email ?? ''),
+    );
+    if (confirmed != true) return;
+    try {
+      await ref.read(authControllerProvider.notifier).deleteAccount();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Your account and shelf data have been deleted.'),
+        ),
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('The account could not be deleted.')),
+      );
     }
   }
 
@@ -336,6 +378,52 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               icon: const Icon(Icons.logout),
               label: const Text('Sign out'),
             ),
+            const SizedBox(height: 24),
+            const SectionHeader(title: 'Account'),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: scheme.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: scheme.outlineVariant),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Read what is stored, export a copy, or close the account.',
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: () => _openLegal('/privacy'),
+                    icon: const Icon(Icons.privacy_tip_outlined),
+                    label: const Text('Privacy policy'),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => _openLegal('/terms'),
+                    icon: const Icon(Icons.description_outlined),
+                    label: const Text('Terms of use'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: _deleteAccount,
+                    style: TextButton.styleFrom(foregroundColor: scheme.error),
+                    icon: const Icon(Icons.delete_forever_outlined),
+                    label: const Text('Delete account'),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Deleting this shelf account does not delete your Authelia / OpenID Connect account.',
+                    style: Theme.of(context).textTheme.labelSmall
+                        ?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 28),
             Center(
               child: Text(
@@ -353,6 +441,99 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _maskedToken(String token) {
     if (token.length <= 12) return '••••';
     return '${token.substring(0, 7)}…${token.substring(token.length - 4)}';
+  }
+}
+
+class _DeleteAccountDialog extends StatefulWidget {
+  const _DeleteAccountDialog({required this.email});
+  final String email;
+
+  @override
+  State<_DeleteAccountDialog> createState() => _DeleteAccountDialogState();
+}
+
+class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
+  static const _effects = [
+    'Your account, profile and preferences are deleted.',
+    'Your shelf, notes, location and play log are deleted.',
+    'Player names recorded on your plays are deleted with them.',
+    'Every session and API token is revoked, including this phone.',
+    'This cannot be undone.',
+  ];
+
+  final _confirm = TextEditingController();
+
+  @override
+  void dispose() {
+    _confirm.dispose();
+    super.dispose();
+  }
+
+  bool get _canDelete => _confirm.text.trim() == 'DELETE';
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AlertDialog(
+      title: const Text('Delete your account?'),
+      content: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.email.isNotEmpty) ...[
+              Text('Signed in as ${widget.email}'),
+              const SizedBox(height: 12),
+            ],
+            for (final effect in _effects)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('• '),
+                    Expanded(child: Text(effect)),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 8),
+            Text(
+              'This deletes the shelf account only. Your Authelia / OpenID Connect account stays; signing in with it again creates a new empty shelf.',
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _confirm,
+              autofocus: true,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(
+                labelText: 'Type DELETE to confirm',
+                hintText: 'DELETE',
+              ),
+              onChanged: (_) => setState(() {}),
+              onSubmitted: (_) {
+                if (_canDelete) Navigator.pop(context, true);
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Keep account'),
+        ),
+        FilledButton(
+          onPressed: _canDelete ? () => Navigator.pop(context, true) : null,
+          style: FilledButton.styleFrom(
+            backgroundColor: scheme.error,
+            foregroundColor: scheme.onError,
+          ),
+          child: const Text('Delete account'),
+        ),
+      ],
+    );
   }
 }
 

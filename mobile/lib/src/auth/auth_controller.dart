@@ -146,6 +146,22 @@ class AuthController extends Notifier<AuthState> {
     );
   }
 
+  /// Deletes the server account and only then clears the local token. If the
+  /// request fails the credentials stay so the user can retry.
+  Future<void> deleteAccount() async {
+    final client = ApiClient(serverUrl: state.serverUrl, token: state.token);
+    try {
+      await client.deleteAccount();
+    } finally {
+      client.close();
+    }
+    await _storage.clear();
+    state = const AuthState(
+      status: AuthStatus.unauthenticated,
+      serverUrl: defaultServerUrl,
+    );
+  }
+
   void clearError() {
     if (state.error.isNotEmpty) state = state.copyWith(error: '');
   }
