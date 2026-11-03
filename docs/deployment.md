@@ -18,7 +18,7 @@ BASE_URL=https://shelf.example.com
 SESSION_SECRET=<openssl rand -base64 48>
 OIDC_ISSUER=https://auth.example.com
 OIDC_CLIENT_ID=the-shelf
-OIDC_CLIENT_SECRET=...
+OIDC_CLIENT_SECRET=...   # or OIDC_CLIENT_SECRET_FILE=/run/secrets/oidc-client-secret
 BGG_USER_AGENT=TheShelf/1.0 (you@example.com)
 TRUSTED_PROXIES=172.16.0.0/12
 ```

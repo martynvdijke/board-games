@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func TestProductionRejectsFakeAuth(t *testing.T) {
 	t.Setenv("ENV", "production")
@@ -12,6 +15,24 @@ func TestProductionRejectsFakeAuth(t *testing.T) {
 	t.Setenv("BGG_USER_AGENT", "TheShelf/1.0 (owner@example.com)")
 	if _, err := Load(); err == nil {
 		t.Fatal("expected production fake auth to be rejected")
+	}
+}
+
+func TestLoadsOIDCClientSecretFromFile(t *testing.T) {
+	t.Setenv("OIDC_CLIENT_SECRET", "")
+	t.Setenv("OIDC_ISSUER", "https://auth.example.com")
+	t.Setenv("OIDC_CLIENT_ID", "board-games")
+	path := t.TempDir() + "/oidc-client-secret"
+	if err := os.WriteFile(path, []byte("  s3cret\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("OIDC_CLIENT_SECRET_FILE", path)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.OIDCClientSecret != "s3cret" {
+		t.Fatalf("OIDCClientSecret = %q, want %q", cfg.OIDCClientSecret, "s3cret")
 	}
 }
 

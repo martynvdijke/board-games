@@ -94,6 +94,15 @@ func Load() (*Config, error) {
 	if c.OIDCRedirectURL == "" && c.BaseURL != "" {
 		c.OIDCRedirectURL = c.BaseURL + "/auth/callback"
 	}
+	if c.OIDCClientSecret == "" {
+		if path := os.Getenv("OIDC_CLIENT_SECRET_FILE"); path != "" {
+			secret, err := os.ReadFile(path)
+			if err != nil {
+				return nil, fmt.Errorf("read OIDC_CLIENT_SECRET_FILE: %w", err)
+			}
+			c.OIDCClientSecret = strings.TrimSpace(string(secret))
+		}
+	}
 	if c.SessionSecret == "" {
 		if c.Env == "production" {
 			return nil, errors.New("SESSION_SECRET is required in production")

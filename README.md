@@ -180,7 +180,7 @@ All configuration is environment-based. The complete annotated list lives in
 | `DATABASE_PATH` | `./data/boardgames.db` | SQLite file; parent directory is created |
 | `SESSION_SECRET` | dev-only generated | Required in production, 32+ random bytes |
 | `OIDC_ISSUER` | — | Issuer URL; discovery is automatic |
-| `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | — | OIDC client credentials |
+| `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | — | OIDC client credentials (`OIDC_CLIENT_SECRET_FILE` reads a mounted secret) |
 | `OIDC_REDIRECT_URL` | `BASE_URL/auth/callback` | Override only if it differs |
 | `ALLOWED_EMAILS` / `ALLOWED_DOMAINS` | empty | Optional allowlist |
 | `BGG_USER_AGENT` | dev placeholder | Must contain a contact in parentheses in production |
