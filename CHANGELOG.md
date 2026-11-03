@@ -1,3 +1,15 @@
+# [1.4.0](https://github.com/martynvdijke/board-games/compare/v1.3.4...v1.4.0) (2026-11-03)
+
+
+### Bug Fixes
+
+* **deploy:** listen on port 6270 by default ([8bca4b6](https://github.com/martynvdijke/board-games/commit/8bca4b64f93968dedd49a67ff2eac8550d329470))
+
+
+### Features
+
+* **legal:** GDPR/Play compliance for board-games ([15c676e](https://github.com/martynvdijke/board-games/commit/15c676ef371d639aca35cbc068cf1012b1b5a892))
+
 ## [1.3.4](https://github.com/martynvdijke/board-games/compare/v1.3.3...v1.3.4) (2026-11-01)
 
 
