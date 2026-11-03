@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/martynvdijke/board-games/compare/v1.4.0...v1.5.0) (2026-11-03)
+
+
+### Features
+
+* **auth:** read OIDC client secret from file ([dd99756](https://github.com/martynvdijke/board-games/commit/dd99756d8539863e9f0d7fa5323a4dd5a53aef17))
+
 # [1.4.0](https://github.com/martynvdijke/board-games/compare/v1.3.4...v1.4.0) (2026-11-03)
 
 
