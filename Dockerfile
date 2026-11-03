@@ -25,12 +25,12 @@ RUN apk add --no-cache ca-certificates tzdata && \
 WORKDIR /app
 COPY --from=build /out/shelf /app/shelf
 USER shelf
-ENV PORT=6290 \
+ENV PORT=6270 \
     DATABASE_PATH=/data/boardgames.db \
     TZ=UTC \
     VERSION=${VERSION}
-EXPOSE 6290
+EXPOSE 6270
 VOLUME ["/data"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:6290/healthz >/dev/null || exit 1
+  CMD wget -qO- http://127.0.0.1:6270/healthz >/dev/null || exit 1
 ENTRYPOINT ["/app/shelf"]

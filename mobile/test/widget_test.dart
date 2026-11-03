@@ -19,8 +19,8 @@ void main() {
       'https://shelf.example.com',
     );
     expect(
-      ApiClient.normalizeServerUrl('http://localhost:6290/api/v1/'),
-      'http://localhost:6290',
+      ApiClient.normalizeServerUrl('http://localhost:6270/api/v1/'),
+      'http://localhost:6270',
     );
   });
 

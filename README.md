@@ -44,7 +44,7 @@ go run ./cmd/seed            # optional: 12 demo games and some plays
 go run ./cmd/server
 ```
 
-Open <http://localhost:6290>. With `DEV_FAKE_AUTH=true`, visiting
+Open <http://localhost:6270>. With `DEV_FAKE_AUTH=true`, visiting
 `/auth/login` signs you in as `owner@example.com` without an identity provider.
 Never enable fake auth in production.
 
@@ -66,7 +66,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-The compose file binds to `127.0.0.1:6290` by default, ready for an existing
+The compose file binds to `127.0.0.1:6270` by default, ready for an existing
 reverse proxy. Data lives in the `shelf-data` volume at
 `/data/boardgames.db`. Set `BIND_ADDR=0.0.0.0` only if you really want the
 container exposed directly.
@@ -175,8 +175,8 @@ All configuration is environment-based. The complete annotated list lives in
 | --- | --- | --- |
 | `APP_NAME` | `The Shelf` | Product name in the UI |
 | `ENV` | `development` | `production` enables secure cookies, JSON logs, HSTS |
-| `PORT` | `6290` | HTTP listen port |
-| `BASE_URL` | `http://localhost:6290` | Public URL used for OIDC and absolute image links |
+| `PORT` | `6270` | HTTP listen port |
+| `BASE_URL` | `http://localhost:6270` | Public URL used for OIDC and absolute image links |
 | `DATABASE_PATH` | `./data/boardgames.db` | SQLite file; parent directory is created |
 | `SESSION_SECRET` | dev-only generated | Required in production, 32+ random bytes |
 | `OIDC_ISSUER` | — | Issuer URL; discovery is automatic |
@@ -203,7 +203,7 @@ Secrets are redacted from the startup config log.
 ```sh
 task install          # Go, npm, Playwright, frontend build
 task seed             # demo data
-task run              # server on :6290
+task run              # server on :6270
 task fakebgg          # fake BGG API on :6291
 task test             # Go tests
 task test:web         # Vitest

@@ -58,8 +58,8 @@ func Load() (*Config, error) {
 	c := &Config{
 		AppName:              env("APP_NAME", "The Shelf"),
 		Env:                  env("ENV", "development"),
-		Port:                 env("PORT", "6290"),
-		BaseURL:              strings.TrimRight(env("BASE_URL", "http://localhost:6290"), "/"),
+		Port:                 env("PORT", "6270"),
+		BaseURL:              strings.TrimRight(env("BASE_URL", "http://localhost:6270"), "/"),
 		DatabasePath:         env("DATABASE_PATH", "./data/boardgames.db"),
 		SessionSecret:        os.Getenv("SESSION_SECRET"),
 		SessionTTL:           duration("SESSION_TTL", 720*time.Hour),

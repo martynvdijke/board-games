@@ -1,7 +1,7 @@
 # Deploying The Shelf
 
 The Shelf is designed for one small instance behind an existing reverse proxy.
-It listens on port `6290`, stores everything in one SQLite file, and needs no
+It listens on port `6270`, stores everything in one SQLite file, and needs no
 external services except an OIDC provider.
 
 ## 1. Prepare the environment
@@ -38,7 +38,7 @@ docker compose up -d --build
 docker compose logs -f shelf
 ```
 
-Compose binds to `127.0.0.1:6290`. To use a different host address, set
+Compose binds to `127.0.0.1:6270`. To use a different host address, set
 `BIND_ADDR`. The named volume `shelf-data` holds `/data/boardgames.db` and the
 cover cache at `/data/covers`.
 
@@ -52,7 +52,7 @@ are `/data` and `/tmp`.
 ```caddyfile
 shelf.example.com {
     encode zstd gzip
-    reverse_proxy 127.0.0.1:6290 {
+    reverse_proxy 127.0.0.1:6270 {
         header_up X-Request-ID {http.request.uuid}
     }
 }
@@ -71,7 +71,7 @@ server {
     client_max_body_size 2m;
 
     location / {
-        proxy_pass http://127.0.0.1:6290;
+        proxy_pass http://127.0.0.1:6270;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -81,7 +81,7 @@ server {
     }
 
     location /static/ {
-        proxy_pass http://127.0.0.1:6290;
+        proxy_pass http://127.0.0.1:6270;
         proxy_cache_valid 200 1h;
         add_header Cache-Control "public, max-age=3600";
     }

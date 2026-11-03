@@ -42,8 +42,8 @@ debug-signed APK.
    in Android secure storage.
 
 Use a trusted HTTPS certificate. Cleartext HTTP is enabled only in debug
-builds for local development. With `adb reverse tcp:6290 tcp:6290`, a debug
-build can reach a local server at `http://127.0.0.1:6290`.
+builds for local development. With `adb reverse tcp:6270 tcp:6270`, a debug
+build can reach a local server at `http://127.0.0.1:6270`.
 
 Signing out clears the server URL and token; theme preference is kept.
 

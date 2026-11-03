@@ -28,7 +28,7 @@ type legalFixture struct {
 func setupLegal(t *testing.T) *legalFixture {
 	t.Helper()
 	ctx := context.Background()
-	cfg := &config.Config{AppName: "The Shelf", BaseURL: "http://localhost:6290", SessionTTL: time.Hour,
+	cfg := &config.Config{AppName: "The Shelf", BaseURL: "http://localhost:6270", SessionTTL: time.Hour,
 		Timezone: "UTC", LegalHostingRegion: "the European Union"}
 	database, err := db.OpenMemory(ctx)
 	if err != nil {
