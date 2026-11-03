@@ -35,10 +35,10 @@ type Handler struct {
 	Auth    *auth.Manager
 	Account *account.Service
 	Games   *collection.Repo
-	Plays  *plays.Repo
-	Sync   *collection.SyncService
-	TRMNL  *trmnl.Service
-	DB     *sql.DB
+	Plays   *plays.Repo
+	Sync    *collection.SyncService
+	TRMNL   *trmnl.Service
+	DB      *sql.DB
 }
 
 func (h *Handler) Routes() http.Handler {
