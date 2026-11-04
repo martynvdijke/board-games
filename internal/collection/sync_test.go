@@ -161,6 +161,34 @@ func TestSearchAndIsolation(t *testing.T) {
 	}
 }
 
+func TestAPITokenEnvFallbackAndInstanceOverride(t *testing.T) {
+	service, _, _, cleanup := setupSync(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	service.Config.BGGAPIToken = "env-token"
+	token, source := service.APIToken(ctx)
+	if token != "env-token" || source != "environment" {
+		t.Fatalf("env fallback = %q/%q", token, source)
+	}
+
+	if err := service.SetAPIToken(ctx, "  instance-token  "); err != nil {
+		t.Fatal(err)
+	}
+	token, source = service.APIToken(ctx)
+	if token != "instance-token" || source != "instance" {
+		t.Fatalf("instance override = %q/%q", token, source)
+	}
+
+	if err := service.SetAPIToken(ctx, ""); err != nil {
+		t.Fatal(err)
+	}
+	token, source = service.APIToken(ctx)
+	if token != "env-token" || source != "environment" {
+		t.Fatalf("after removal = %q/%q", token, source)
+	}
+}
+
 func TestSyncRequiresUsername(t *testing.T) {
 	service, _, userID, cleanup := setupSync(t)
 	defer cleanup()

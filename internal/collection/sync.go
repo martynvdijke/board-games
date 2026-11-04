@@ -135,6 +135,13 @@ func (s *SyncService) run(ctx context.Context, userID, runID string) {
 		lastErr = ErrNoBGGUsername
 		return
 	}
+	token, source := s.APIToken(ctx)
+	if token == "" {
+		slog.Warn("sync has no BGG API token; requests may be rejected", "user", userID, "run", runID)
+	} else {
+		slog.Debug("using BGG API token", "user", userID, "run", runID, "source", source)
+	}
+	s.BGG.SetToken(token)
 
 	s.phase(runID, "collection", 0, 0, 0)
 	collectionCount, err := s.syncCollection(ctx, userID, username)
@@ -416,7 +423,52 @@ func (s *SyncService) runDue(ctx context.Context) {
 	}
 }
 
+const bggTokenKey = "bgg_api_token"
+
+// APIToken resolves the effective application token. A value stored through
+// the web UI wins over the environment, matching the "instance" source.
+func (s *SyncService) APIToken(ctx context.Context) (token, source string) {
+	var stored string
+	err := s.DB.QueryRowContext(ctx, `SELECT value FROM instance_settings WHERE key=?`, bggTokenKey).Scan(&stored)
+	switch {
+	case err == nil && strings.TrimSpace(stored) != "":
+		return strings.TrimSpace(stored), "instance"
+	case err != nil && !errors.Is(err, sql.ErrNoRows):
+		slog.Warn("read BGG API token", "error", err)
+	}
+	if s.Config != nil && strings.TrimSpace(s.Config.BGGAPIToken) != "" {
+		return strings.TrimSpace(s.Config.BGGAPIToken), "environment"
+	}
+	return "", ""
+}
+
+// SetAPIToken stores or clears the instance-level token and updates the client.
+func (s *SyncService) SetAPIToken(ctx context.Context, token string) error {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		if _, err := s.DB.ExecContext(ctx, `DELETE FROM instance_settings WHERE key=?`, bggTokenKey); err != nil {
+			return err
+		}
+		effective, _ := s.APIToken(ctx)
+		s.BGG.SetToken(effective)
+		return nil
+	}
+	now := db.Now()
+	if _, err := s.DB.ExecContext(ctx, `INSERT INTO instance_settings(key,value,updated_at) VALUES(?,?,?)
+		ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`, bggTokenKey, token, now); err != nil {
+		return err
+	}
+	s.BGG.SetToken(token)
+	return nil
+}
+
+// ValidateAPIToken asks BGG whether the supplied token is accepted.
+func (s *SyncService) ValidateAPIToken(ctx context.Context, token string) error {
+	return s.BGG.ValidateToken(ctx, token)
+}
+
 // VerifyUsername asks BGG whether the public collection can be read.
-func (s *SyncService) VerifyUsername(ctx context.Context, username string) error {
+func (s *SyncService) VerifyUsername(ctx context.Context, username, token string) error {
+	s.BGG.SetToken(token)
 	return s.BGG.ValidateUsername(ctx, username)
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"boardgames/internal/auth"
+	"boardgames/internal/bgg"
 	"boardgames/internal/collection"
 	"boardgames/internal/db"
 )
@@ -26,7 +27,11 @@ func (h *Handler) settingsPage(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("sync history", "error", err)
 	}
 	tokens, _ := h.Auth.ListTokens(ctx, user.ID)
-	data := &SettingsData{Settings: settings, Runs: runs, Tokens: tokens, DocsURL: "/api/docs"}
+	token, source := h.Sync.APIToken(ctx)
+	data := &SettingsData{
+		Settings: settings, Runs: runs, Tokens: tokens, DocsURL: "/api/docs",
+		IsAdmin: user.Role == "admin", BGGTokenConfigured: token != "", BGGTokenSource: source,
+	}
 	p := h.page(r, "Settings", "settings", "")
 	p.Data = data
 	h.render(w, r, "settings.html", p)
@@ -53,10 +58,21 @@ func (h *Handler) saveBGG(w http.ResponseWriter, r *http.Request) {
 		h.flashRedirect(w, r, "/settings", "BGG username removed; scheduled sync is off", "success")
 		return
 	}
-	if err := h.Sync.VerifyUsername(ctx, username); err != nil {
+	token, _ := h.Sync.APIToken(ctx)
+	if err := h.Sync.VerifyUsername(ctx, username, token); err != nil {
 		_, _ = h.DB.ExecContext(ctx, `UPDATE user_settings SET bgg_username=?,bgg_username_verified_at=NULL,bgg_sync_enabled=0,
 			bgg_sync_interval_seconds=?,updated_at=? WHERE user_id=?`, username, interval, db.Now(), user.ID)
-		h.flashRedirect(w, r, "/settings", "BGG didn't recognise that username. It's saved but sync is off until it verifies.", "error")
+		switch {
+		case errors.Is(err, bgg.ErrUnauthorized) && user.Role == "admin":
+			h.flashRedirect(w, r, "/settings", "BoardGameGeek rejected the API token. Add a valid token below, then save the username again.", "error")
+		case errors.Is(err, bgg.ErrUnauthorized):
+			h.flashRedirect(w, r, "/settings", "BoardGameGeek isn't configured yet. Ask an instance admin to add the API token, then try again.", "error")
+		case errors.Is(err, bgg.ErrNotFound):
+			h.flashRedirect(w, r, "/settings", "BGG didn't recognise that username. It's saved but sync is off until it verifies.", "error")
+		default:
+			slog.Warn("verify BGG username", "error", err)
+			h.flashRedirect(w, r, "/settings", "BGG couldn't verify that username right now. It's saved but sync is off until it verifies.", "error")
+		}
 		return
 	}
 	now := db.Now()
@@ -67,6 +83,56 @@ func (h *Handler) saveBGG(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.flashRedirect(w, r, "/settings", "BoardGameGeek account connected", "success")
+}
+
+// saveBGGToken stores an instance-wide BoardGameGeek application token.
+func (h *Handler) saveBGGToken(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := contextWithTimeout(r, 40*time.Second)
+	defer cancel()
+	user := auth.UserFromContext(r.Context())
+	if user.Role != "admin" {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	_ = r.ParseForm()
+	token := strings.TrimSpace(r.PostForm.Get("bgg_api_token"))
+	if token == "" {
+		h.flashRedirect(w, r, "/settings", "Enter a BoardGameGeek API token", "error")
+		return
+	}
+	switch err := h.Sync.ValidateAPIToken(ctx, token); {
+	case errors.Is(err, bgg.ErrUnauthorized):
+		h.flashRedirect(w, r, "/settings", "BGG rejected that API token", "error")
+		return
+	case err != nil:
+		slog.Warn("validate BGG API token", "error", err)
+		h.flashRedirect(w, r, "/settings", "The token couldn't be verified with BGG", "error")
+		return
+	}
+	if err := h.Sync.SetAPIToken(ctx, token); err != nil {
+		slog.Error("save BGG API token", "error", err)
+		h.flashRedirect(w, r, "/settings", "The token couldn't be saved", "error")
+		return
+	}
+	h.flashRedirect(w, r, "/settings", "BGG API token saved. Save the BoardGameGeek connection again to verify your username.", "success")
+}
+
+// removeBGGToken clears the instance-level token so the environment fallback
+// (if any) applies again.
+func (h *Handler) removeBGGToken(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := contextWithTimeout(r, 10*time.Second)
+	defer cancel()
+	user := auth.UserFromContext(r.Context())
+	if user.Role != "admin" {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	if err := h.Sync.SetAPIToken(ctx, ""); err != nil {
+		slog.Error("remove BGG API token", "error", err)
+		h.flashRedirect(w, r, "/settings", "The token couldn't be removed", "error")
+		return
+	}
+	h.flashRedirect(w, r, "/settings", "BGG API token removed", "success")
 }
 
 func (h *Handler) startSync(w http.ResponseWriter, r *http.Request) {

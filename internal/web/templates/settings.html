@@ -62,6 +62,34 @@
     {{end}}
   </section>
 
+  {{if $d.IsAdmin}}
+  <section class="panel" id="bgg-api" aria-labelledby="bgg-api-title">
+    <div class="panel-head panel-head--wrap">
+      <h2 id="bgg-api-title" class="section-title">BoardGameGeek API</h2>
+      {{if eq $d.BGGTokenSource "instance"}}
+      <span class="status-badge is-owned"><svg aria-hidden="true"><use href="#i-check"/></svg> Saved in this instance</span>
+      {{else if eq $d.BGGTokenSource "environment"}}
+      <span class="status-badge is-owned"><svg aria-hidden="true"><use href="#i-check"/></svg> Configured by environment</span>
+      {{else}}
+      <span class="status-badge">Not configured</span>
+      {{end}}
+    </div>
+    <p class="panel-copy">BGG requires an application token for every XML API request. <a href="https://boardgamegeek.com/applications" target="_blank" rel="noopener">Create or approve an application and token<span class="sr-only"> (opens in a new tab)</span> <svg aria-hidden="true"><use href="#i-external"/></svg></a> — approval can take a week or more. One token covers every BGG request this instance makes.{{if eq $d.BGGTokenSource "environment"}} No token is saved in this instance, so requests fall back to the token supplied by the environment; saving one here overrides it.{{end}}</p>
+    <form method="post" action="/settings/bgg-token" class="stack">
+      <input type="hidden" name="csrf_token" value="{{.CSRF}}">
+      <label class="field"><span>API token</span><input type="password" name="bgg_api_token" autocomplete="off" spellcheck="false" placeholder="paste your BGG token" required aria-describedby="bgg-token-help"></label>
+      <p class="fine-print" id="bgg-token-help">Stored on the server and never shown again. <a class="text-link text-link--small" href="https://boardgamegeek.com/using_the_xml_api" target="_blank" rel="noopener">Using the XML API<span class="sr-only"> (opens in a new tab)</span> <svg aria-hidden="true"><use href="#i-external"/></svg></a></p>
+      <div class="form-actions"><button class="button button--primary button--small" type="submit">Save token</button></div>
+    </form>
+    {{if eq $d.BGGTokenSource "instance"}}
+    <form method="post" action="/settings/bgg-token/remove" class="settings-token-remove">
+      <input type="hidden" name="csrf_token" value="{{.CSRF}}">
+      <button class="button button--danger-ghost button--small" type="submit">Remove saved token</button>
+    </form>
+    {{end}}
+  </section>
+  {{end}}
+
   <section class="panel" aria-labelledby="appearance-title">
     <div class="panel-head"><h2 id="appearance-title" class="section-title">Appearance</h2></div>
     <p class="panel-copy">Warm paper in daylight, deep ink after dark. Follow the system or choose one.</p>

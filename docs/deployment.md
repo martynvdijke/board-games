@@ -20,8 +20,15 @@ OIDC_ISSUER=https://auth.example.com
 OIDC_CLIENT_ID=the-shelf
 OIDC_CLIENT_SECRET=...   # or OIDC_CLIENT_SECRET_FILE=/run/secrets/oidc-client-secret
 BGG_USER_AGENT=TheShelf/1.0 (you@example.com)
+BGG_API_TOKEN=...        # or BGG_API_TOKEN_FILE=/run/secrets/bgg-api-token
 TRUSTED_PROXIES=172.16.0.0/12
 ```
+
+`BGG_API_TOKEN` is an application token from
+[boardgamegeek.com/applications](https://boardgamegeek.com/applications), not a
+personal key. Register the application early: manual approval can take a week or
+more. One token serves every BGG username on the instance. You can leave it
+empty here and save it later in the admin-only Settings panel.
 
 `BASE_URL` must be the public HTTPS origin. The OIDC redirect URI is
 `${BASE_URL}/auth/callback` unless you set `OIDC_REDIRECT_URL` explicitly.
@@ -97,8 +104,11 @@ Visit `https://shelf.example.com/login`. The first successfully authenticated
 user becomes an admin. If you configured `ALLOWED_EMAILS` or
 `ALLOWED_DOMAINS`, only matching accounts can enter.
 
-Then open **Settings → BoardGameGeek**, enter your public BGG username, save,
-and run the first sync. Private BGG collections are not supported.
+Then open **Settings → BoardGameGeek API**. An admin must first add the
+instance's BGG API token there (unless it was provided through `BGG_API_TOKEN`).
+After the token is verified, enter your public BGG username in the
+**BoardGameGeek** panel, save, and run the first sync. Private BGG collections
+are not supported.
 
 ## 5. Health and metrics
 

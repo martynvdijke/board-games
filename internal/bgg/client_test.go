@@ -3,6 +3,7 @@ package bgg
 import (
 	"context"
 	"encoding/xml"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -55,6 +56,49 @@ func TestCollectionParsing(t *testing.T) {
 	}
 	if len(c.Items) != 1 || !c.Items[0].Status.IsOwned() || c.Items[0].Stats.Rating.Personal() == nil || *c.Items[0].Stats.Rating.Personal() != 8 {
 		t.Fatalf("unexpected collection: %+v", c)
+	}
+}
+
+func TestClientSendsBearerToken(t *testing.T) {
+	var got string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Get("Authorization")
+		_, _ = w.Write([]byte(`<items total="0"></items>`))
+	}))
+	defer server.Close()
+	client := NewClient(server.URL, "TheShelfTest/1.0 (test@example.com)", 100)
+	client.SetToken("  secret-token  ")
+	if _, err := client.Get(context.Background(), "thing", nil); err != nil {
+		t.Fatal(err)
+	}
+	if got != "Bearer secret-token" {
+		t.Fatalf("Authorization = %q", got)
+	}
+}
+
+func TestUnauthorized(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="xml api"`)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+	client := NewClient(server.URL, "TheShelfTest/1.0 (test@example.com)", 100)
+	_, err := client.Get(context.Background(), "collection", nil)
+	if !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("expected ErrUnauthorized, got %v", err)
+	}
+}
+
+func TestErrorDocumentMapsToNotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/xml")
+		_, _ = w.Write([]byte(`<errors><error><message>Invalid username specified</message></error></errors>`))
+	}))
+	defer server.Close()
+	client := NewClient(server.URL, "TheShelfTest/1.0 (test@example.com)", 100)
+	_, err := client.Get(context.Background(), "collection", nil)
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }
 

@@ -5,7 +5,7 @@ TBD - created by archiving change add-board-games-v1. Update Purpose after archi
 ## Requirements
 ### Requirement: Users SHALL configure a public BoardGameGeek username
 
-The settings page SHALL allow an authenticated user to save and validate a BoardGameGeek username. The system SHALL verify that the collection is readable without credentials and SHALL explain that private collections are unsupported. The username SHALL be stored per user.
+The settings page SHALL allow an authenticated user to save and validate a BoardGameGeek username. The system SHALL verify that the collection is readable using the instance's BoardGameGeek application API token and SHALL explain that private collections are unsupported. The username SHALL be stored per user.
 
 #### Scenario: Save valid username
 - **WHEN** a user saves a username whose BGG collection is public
@@ -21,6 +21,24 @@ The settings page SHALL allow an authenticated user to save and validate a Board
 - **WHEN** a user clears the username
 - **THEN** scheduled sync SHALL be disabled for that user
 - **AND** existing local data SHALL remain
+
+### Requirement: The instance SHALL authenticate BGG requests with an application token
+
+The system SHALL send an application-scoped BoardGameGeek API token as `Authorization: Bearer <token>` on every XML API2 request. An admin SHALL be able to save or remove the token in settings. `BGG_API_TOKEN` or `BGG_API_TOKEN_FILE` SHALL provide an environment fallback, and a token saved in the instance SHALL take precedence. The token SHALL NOT be rendered in a page, exported, or returned by the API.
+
+#### Scenario: Admin saves a token
+- **WHEN** an admin saves a token that BGG accepts
+- **THEN** the token SHALL be stored server-side
+- **AND** subsequent BGG requests SHALL use it
+
+#### Scenario: Missing or rejected token
+- **WHEN** BGG responds `401 Unauthorized`
+- **THEN** the user SHALL see an explanation that the instance API token is missing or invalid
+- **AND** the username SHALL remain saved but not marked syncable
+
+#### Scenario: Environment fallback
+- **WHEN** no token is saved in the instance and `BGG_API_TOKEN` is configured
+- **THEN** BGG requests SHALL use the environment token
 
 ### Requirement: Sync SHALL import owned games and collection state
 
@@ -83,7 +101,7 @@ The system SHALL import the user's BGG plays with date, game, location, duration
 
 ### Requirement: Sync SHALL respect BoardGameGeek rate limits
 
-The system SHALL limit outbound BGG requests to approximately one per second, send a descriptive `User-Agent` with contact information, and retry `202 Accepted`, `429 Too Many Requests`, and `503 Service Unavailable` responses with jittered backoff. A queued collection request SHALL be polled until it succeeds or the retry budget is exhausted.
+The system SHALL limit outbound BGG requests to approximately one per second, send a descriptive `User-Agent` with contact information, authenticate with the instance application token, and retry `202 Accepted`, `429 Too Many Requests`, and `503 Service Unavailable` responses with jittered backoff. A queued collection request SHALL be polled until it succeeds or the retry budget is exhausted.
 
 #### Scenario: Queued collection response
 - **WHEN** BGG responds `202 Accepted` for a collection request
@@ -131,11 +149,12 @@ Each user SHALL be able to enable or disable scheduled sync and choose an interv
 
 ### Requirement: BoardGameGeek SHALL be read-only
 
-The system SHALL NOT store BoardGameGeek passwords or session cookies and SHALL NOT send write requests to BoardGameGeek. The interface SHALL state that collection and play changes are local.
+The system SHALL NOT store BoardGameGeek passwords or session cookies and SHALL NOT send write requests to BoardGameGeek. An application-scoped API token MAY be stored server-side for read-only XML API access. The interface SHALL state that collection and play changes are local.
 
-#### Scenario: No credentials stored
+#### Scenario: No user credentials stored
 - **WHEN** a user configures BGG sync
-- **THEN** only the username SHALL be stored
+- **THEN** only the username SHALL be stored per user
+- **AND** any application API token SHALL be stored once per instance, never per user
 
 #### Scenario: No write requests
 - **WHEN** a user edits a rating, note, or play

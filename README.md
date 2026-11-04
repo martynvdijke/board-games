@@ -158,6 +158,15 @@ BoardGameGeek's XML API2 has **no official write API**. The Shelf therefore:
 - does **not** update your BGG collection, log plays on BGG, or write ratings;
 - cannot read private BGG collections.
 
+BGG now requires an **application token** for every XML API2 request. Create an
+application at [boardgamegeek.com/applications](https://boardgamegeek.com/applications)
+and copy its token; approval can take a week or more. The token is
+application-scoped, not per user: one token covers every BGG request this
+instance makes for every shelf. Set `BGG_API_TOKEN` (or
+`BGG_API_TOKEN_FILE`) at startup, or save it at runtime under
+the **BoardGameGeek API** panel in Settings. That panel is admin-only and its
+saved token takes precedence over the environment variable.
+
 The app identifies itself with `BGG_USER_AGENT`, which must include a contact
 address in parentheses, and rate-limits requests to roughly one per second.
 Use a descriptive value such as `TheShelf/1.0 (you@example.com)`.
@@ -184,6 +193,7 @@ All configuration is environment-based. The complete annotated list lives in
 | `OIDC_REDIRECT_URL` | `BASE_URL/auth/callback` | Override only if it differs |
 | `ALLOWED_EMAILS` / `ALLOWED_DOMAINS` | empty | Optional allowlist |
 | `BGG_USER_AGENT` | dev placeholder | Must contain a contact in parentheses in production |
+| `BGG_API_TOKEN` | empty | Application-scoped BGG API token; `_FILE` reads a mounted secret |
 | `BGG_SYNC_INTERVAL` | `6h` | Default schedule for new users |
 | `TRUSTED_PROXIES` | loopback | CIDRs allowed to set forwarded headers |
 | `METRICS_ENABLED` | `true` | Expose Prometheus metrics at `/metrics` |

@@ -150,13 +150,16 @@ type StatsData struct {
 }
 
 type SettingsData struct {
-	Settings     auth.UserSettings
-	Runs         []collection.SyncRun
-	Tokens       []auth.Token
-	NewToken     string
-	NewTokenName string
-	BGGError     string
-	DocsURL      string
+	Settings           auth.UserSettings
+	Runs               []collection.SyncRun
+	Tokens             []auth.Token
+	NewToken           string
+	NewTokenName       string
+	BGGError           string
+	DocsURL            string
+	IsAdmin            bool
+	BGGTokenConfigured bool
+	BGGTokenSource     string
 }
 
 type TRMNLData struct {
@@ -195,6 +198,8 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("GET /stats", h.requireUser(h.statsPage))
 	mux.HandleFunc("GET /settings", h.requireUser(h.settingsPage))
 	mux.HandleFunc("POST /settings/bgg", h.requireUser(h.saveBGG))
+	mux.HandleFunc("POST /settings/bgg-token", h.requireUser(h.saveBGGToken))
+	mux.HandleFunc("POST /settings/bgg-token/remove", h.requireUser(h.removeBGGToken))
 	mux.HandleFunc("POST /settings/sync", h.requireUser(h.startSync))
 	mux.HandleFunc("GET /settings/sync/status", h.requireUser(h.syncStatus))
 	mux.HandleFunc("POST /settings/theme", h.requireUser(h.saveTheme))

@@ -36,6 +36,35 @@ func TestLoadsOIDCClientSecretFromFile(t *testing.T) {
 	}
 }
 
+func TestLoadsBGGAPITokenFromFileAndNormalisesBaseURL(t *testing.T) {
+	t.Setenv("BGG_API_TOKEN", "")
+	t.Setenv("BGG_BASE_URL", "https://www.boardgamegeek.com/xmlapi2/")
+	path := t.TempDir() + "/bgg-token"
+	if err := os.WriteFile(path, []byte("  bgg-secret\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("BGG_API_TOKEN_FILE", path)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.BGGAPIToken != "bgg-secret" {
+		t.Fatalf("BGGAPIToken = %q, want %q", cfg.BGGAPIToken, "bgg-secret")
+	}
+	if cfg.BGGBaseURL != "https://boardgamegeek.com/xmlapi2" {
+		t.Fatalf("BGGBaseURL = %q", cfg.BGGBaseURL)
+	}
+	var logged string
+	for _, attr := range cfg.LogValue().Group() {
+		if attr.Key == "bgg_api_token" {
+			logged = attr.Value.String()
+		}
+	}
+	if logged != "[redacted]" {
+		t.Fatalf("bgg_api_token log value = %q, want redacted", logged)
+	}
+}
+
 func TestProductionRequiresOIDC(t *testing.T) {
 	t.Setenv("ENV", "production")
 	t.Setenv("BASE_URL", "https://shelf.example.com")

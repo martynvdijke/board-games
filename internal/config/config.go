@@ -30,6 +30,7 @@ type Config struct {
 	AllowedEmails        []string
 	AllowedDomains       []string
 	BGGBaseURL           string
+	BGGAPIToken          string
 	BGGUserAgent         string
 	BGGRequestsPerSecond float64
 	BGGRefreshDays       int
@@ -70,6 +71,7 @@ func Load() (*Config, error) {
 		AllowedEmails:        list("ALLOWED_EMAILS"),
 		AllowedDomains:       list("ALLOWED_DOMAINS"),
 		BGGBaseURL:           strings.TrimRight(env("BGG_BASE_URL", "https://boardgamegeek.com/xmlapi2"), "/"),
+		BGGAPIToken:          strings.TrimSpace(os.Getenv("BGG_API_TOKEN")),
 		BGGUserAgent:         env("BGG_USER_AGENT", "TheShelf/1.0 (self-hosted board game shelf)"),
 		BGGRequestsPerSecond: float("BGG_REQUESTS_PER_SECOND", 1),
 		BGGRefreshDays:       integer("BGG_REFRESH_DAYS", 30),
@@ -101,6 +103,18 @@ func Load() (*Config, error) {
 				return nil, fmt.Errorf("read OIDC_CLIENT_SECRET_FILE: %w", err)
 			}
 			c.OIDCClientSecret = strings.TrimSpace(string(secret))
+		}
+	}
+	// Go strips the Authorization header on cross-domain redirects, and BGG
+	// redirects www.boardgamegeek.com to the apex host, so normalise to it.
+	c.BGGBaseURL = strings.Replace(c.BGGBaseURL, "://www.boardgamegeek.com", "://boardgamegeek.com", 1)
+	if c.BGGAPIToken == "" {
+		if path := os.Getenv("BGG_API_TOKEN_FILE"); path != "" {
+			token, err := os.ReadFile(path)
+			if err != nil {
+				return nil, fmt.Errorf("read BGG_API_TOKEN_FILE: %w", err)
+			}
+			c.BGGAPIToken = strings.TrimSpace(string(token))
 		}
 	}
 	if c.SessionSecret == "" {
@@ -189,6 +203,7 @@ func (c *Config) LogValue() slog.Value {
 		slog.String("oidc_client_secret", redact(c.OIDCClientSecret)),
 		slog.String("oidc_redirect_uri", c.RedirectURI()),
 		slog.String("bgg_base_url", c.BGGBaseURL),
+		slog.String("bgg_api_token", redact(c.BGGAPIToken)),
 		slog.Int("bgg_refresh_days", c.BGGRefreshDays),
 		slog.Duration("sync_interval", c.SyncInterval),
 		slog.Bool("metrics_enabled", c.MetricsEnabled),
