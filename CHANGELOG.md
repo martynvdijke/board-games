@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/martynvdijke/board-games/compare/v1.5.0...v1.6.0) (2026-11-04)
+
+
+### Features
+
+* **bgg:** support application API tokens ([12967d1](https://github.com/martynvdijke/board-games/commit/12967d194bd95d3a5c6a279caa881c9c318f9bc1))
+
 # [1.5.0](https://github.com/martynvdijke/board-games/compare/v1.4.0...v1.5.0) (2026-11-03)
 
 
