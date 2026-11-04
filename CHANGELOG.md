@@ -1,3 +1,10 @@
+## [1.6.1](https://github.com/martynvdijke/board-games/compare/v1.6.0...v1.6.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **android:** resolve usesCleartextTraffic manifest merger conflict ([26013af](https://github.com/martynvdijke/board-games/commit/26013af13c086d91bb951aa1c6b621bbcbd04759))
+
 # [1.6.0](https://github.com/martynvdijke/board-games/compare/v1.5.0...v1.6.0) (2026-11-04)
 
 
