@@ -1,3 +1,10 @@
+# [1.8.0](https://github.com/martynvdijke/board-games/compare/v1.7.0...v1.8.0) (2026-11-05)
+
+
+### Features
+
+* **privacy:** add Play review demo and EU privacy controls ([a0cc0ab](https://github.com/martynvdijke/board-games/commit/a0cc0ab1201c64d9e0478aaf71130776664ac875))
+
 # [1.7.0](https://github.com/martynvdijke/board-games/compare/v1.6.4...v1.7.0) (2026-11-05)
 
 
