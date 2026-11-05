@@ -1,3 +1,10 @@
+# [1.7.0](https://github.com/martynvdijke/board-games/compare/v1.6.4...v1.7.0) (2026-11-05)
+
+
+### Features
+
+* **games:** add private per-game setup guide with photos ([253a204](https://github.com/martynvdijke/board-games/commit/253a204be3f774280fae0a5e9c2edd0d83cfa023))
+
 ## [1.6.4](https://github.com/martynvdijke/board-games/compare/v1.6.3...v1.6.4) (2026-11-05)
 
 
