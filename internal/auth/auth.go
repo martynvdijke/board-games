@@ -45,6 +45,7 @@ type User struct {
 	Name        string
 	AvatarURL   string
 	Role        string
+	IsDemo      bool
 	CreatedAt   string
 	LastLoginAt string
 }
@@ -386,7 +387,7 @@ func validNonce(token *oidc.IDToken, expected string) bool {
 }
 
 func safeReturnTo(v string) string {
-	if v == "" || !strings.HasPrefix(v, "/") || strings.HasPrefix(v, "//") || strings.ContainsAny(v, "\r\n") {
+	if v == "" || !strings.HasPrefix(v, "/") || strings.HasPrefix(v, "//") || strings.ContainsAny(v, "\\\r\n\t") {
 		return "/"
 	}
 	return v
@@ -427,20 +428,20 @@ func (m *Manager) EnsureAdmin(ctx context.Context) (string, error) {
 	var promoted string
 	err := db.WithTx(ctx, m.db, func(tx *sql.Tx) error {
 		var admins int
-		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE role='admin'`).Scan(&admins); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE role='admin' AND is_demo=0`).Scan(&admins); err != nil {
 			return err
 		}
 		if admins > 0 {
 			return nil
 		}
 		var users int
-		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&users); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE is_demo=0`).Scan(&users); err != nil {
 			return err
 		}
 		if users == 0 {
 			return nil
 		}
-		if err := tx.QueryRowContext(ctx, `SELECT id FROM users ORDER BY created_at ASC, id ASC LIMIT 1`).Scan(&promoted); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT id FROM users WHERE is_demo=0 ORDER BY created_at ASC, id ASC LIMIT 1`).Scan(&promoted); err != nil {
 			return err
 		}
 		_, err := tx.ExecContext(ctx, `UPDATE users SET role='admin', updated_at=? WHERE id=?`, db.Now(), promoted)
@@ -465,7 +466,7 @@ func (m *Manager) UpsertUser(ctx context.Context, email, name, avatar string, em
 	var u User
 	err := db.WithTx(ctx, m.db, func(tx *sql.Tx) error {
 		var existing int
-		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&existing); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE is_demo=0`).Scan(&existing); err != nil {
 			return err
 		}
 		role := "member"
@@ -473,7 +474,8 @@ func (m *Manager) UpsertUser(ctx context.Context, email, name, avatar string, em
 			role = "admin"
 		}
 		var id string
-		err := tx.QueryRowContext(ctx, `SELECT id FROM users WHERE email = ?`, email).Scan(&id)
+		var matchedDemo int
+		err := tx.QueryRowContext(ctx, `SELECT id,is_demo FROM users WHERE email = ?`, email).Scan(&id, &matchedDemo)
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
 			id = newID()
@@ -487,6 +489,8 @@ func (m *Manager) UpsertUser(ctx context.Context, email, name, avatar string, em
 			}
 		case err != nil:
 			return err
+		case matchedDemo == 1:
+			return fmt.Errorf("email %q belongs to the demo account", email)
 		default:
 			if _, err := tx.ExecContext(ctx, `UPDATE users SET email=?,
 				name=CASE WHEN ?<>'' THEN ? ELSE name END,
@@ -496,8 +500,8 @@ func (m *Manager) UpsertUser(ctx context.Context, email, name, avatar string, em
 				return err
 			}
 		}
-		return tx.QueryRowContext(ctx, `SELECT id,email,name,avatar_url,role,coalesce(last_login_at,'') FROM users WHERE id=?`, id).
-			Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.Role, &u.LastLoginAt)
+		return tx.QueryRowContext(ctx, `SELECT id,email,name,avatar_url,role,is_demo,coalesce(last_login_at,'') FROM users WHERE id=?`, id).
+			Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.Role, &u.IsDemo, &u.LastLoginAt)
 	})
 	if err != nil {
 		return nil, err
@@ -569,14 +573,17 @@ func (m *Manager) sessionAuth(r *http.Request, raw string) (*AuthContext, error)
 	var u User
 	var s Session
 	var expires string
-	err := m.db.QueryRowContext(r.Context(), `SELECT u.id,u.email,u.name,u.avatar_url,u.role,coalesce(u.last_login_at,''), s.token_hash,s.user_id,s.csrf_token,s.expires_at
+	err := m.db.QueryRowContext(r.Context(), `SELECT u.id,u.email,u.name,u.avatar_url,u.role,u.is_demo,coalesce(u.last_login_at,''), s.token_hash,s.user_id,s.csrf_token,s.expires_at
 		FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=?`, hash).
-		Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.Role, &u.LastLoginAt, &s.TokenHash, &s.UserID, &s.CSRFToken, &expires)
+		Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.Role, &u.IsDemo, &u.LastLoginAt, &s.TokenHash, &s.UserID, &s.CSRFToken, &expires)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrUnauthenticated
 	}
 	if err != nil {
 		return nil, err
+	}
+	if u.IsDemo && !m.cfg.DemoUserEnabled {
+		return nil, ErrUnauthenticated
 	}
 	exp, _ := time.Parse(time.RFC3339, expires)
 	if time.Now().UTC().After(exp) {
@@ -687,15 +694,18 @@ func (m *Manager) personalTokenAuth(ctx context.Context, raw string) (*AuthConte
 	var u User
 	var scopes, lastUsed, revoked sql.NullString
 	err := m.db.QueryRowContext(ctx, `SELECT t.id,t.user_id,t.name,t.prefix,t.scopes,t.created_at,t.last_used_at,t.revoked_at,
-		u.id,u.email,u.name,u.avatar_url,u.role,coalesce(u.last_login_at,'')
+		u.id,u.email,u.name,u.avatar_url,u.role,u.is_demo,coalesce(u.last_login_at,'')
 		FROM api_tokens t JOIN users u ON u.id=t.user_id WHERE t.token_hash=?`, hashToken(raw)).
 		Scan(&t.ID, &t.UserID, &t.Name, &t.Prefix, &scopes, &t.CreatedAt, &lastUsed, &revoked,
-			&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.Role, &u.LastLoginAt)
+			&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.Role, &u.IsDemo, &u.LastLoginAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrUnauthenticated
 	}
 	if err != nil {
 		return nil, err
+	}
+	if u.IsDemo && !m.cfg.DemoUserEnabled {
+		return nil, ErrUnauthenticated
 	}
 	t.Scopes = strings.Fields(scopes.String)
 	if revoked.Valid && revoked.String != "" {
@@ -724,8 +734,8 @@ func (m *Manager) jwtAuth(ctx context.Context, raw string) (*AuthContext, error)
 		return nil, ErrUnauthenticated
 	}
 	var u User
-	err = m.db.QueryRowContext(ctx, `SELECT id,email,name,avatar_url,role,coalesce(last_login_at,'') FROM users WHERE email=?`, strings.ToLower(claims.Email)).
-		Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.Role, &u.LastLoginAt)
+	err = m.db.QueryRowContext(ctx, `SELECT id,email,name,avatar_url,role,is_demo,coalesce(last_login_at,'') FROM users WHERE email=?`, strings.ToLower(claims.Email)).
+		Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.Role, &u.IsDemo, &u.LastLoginAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrUnauthenticated
 	}
@@ -772,6 +782,29 @@ func (m *Manager) CreateToken(ctx context.Context, userID, name string, scopes [
 		return "", nil, err
 	}
 	return raw, t, nil
+}
+
+// EnsurePersonalToken creates or replaces a personal token with a known secret.
+// It is used by the demo account so the published credential survives restarts.
+func (m *Manager) EnsurePersonalToken(ctx context.Context, userID, name, raw string, scopes []string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return errors.New("token name is required")
+	}
+	if !strings.HasPrefix(raw, "bg_") {
+		return errors.New("token must begin with bg_")
+	}
+	if len(raw) < 11 {
+		return errors.New("token is too short")
+	}
+	return db.WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM api_tokens WHERE user_id=? AND name=?`, userID, name); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `INSERT INTO api_tokens(id,user_id,name,token_hash,prefix,scopes,created_at) VALUES(?,?,?,?,?,?,?)`,
+			newID(), userID, name, hashToken(raw), raw[:11], strings.Join(scopes, " "), db.Now())
+		return err
+	})
 }
 
 func (m *Manager) ListTokens(ctx context.Context, userID string) ([]Token, error) {
@@ -838,19 +871,38 @@ type UserSettings struct {
 	SyncIntervalSeconds int
 	Theme               string
 	Timezone            string
+	AnalyticsOptOut     bool
 }
 
 func (m *Manager) Settings(ctx context.Context, userID string) (UserSettings, error) {
 	var s UserSettings
 	s.UserID = userID
-	var enabled int
-	err := m.db.QueryRowContext(ctx, `SELECT bgg_username,coalesce(bgg_username_verified_at,''),bgg_sync_enabled,bgg_sync_interval_seconds,theme,timezone FROM user_settings WHERE user_id=?`, userID).
-		Scan(&s.BGGUsername, &s.BGGVerifiedAt, &enabled, &s.SyncIntervalSeconds, &s.Theme, &s.Timezone)
+	var enabled, analyticsOptOut int
+	err := m.db.QueryRowContext(ctx, `SELECT bgg_username,coalesce(bgg_username_verified_at,''),bgg_sync_enabled,bgg_sync_interval_seconds,theme,timezone,analytics_opt_out FROM user_settings WHERE user_id=?`, userID).
+		Scan(&s.BGGUsername, &s.BGGVerifiedAt, &enabled, &s.SyncIntervalSeconds, &s.Theme, &s.Timezone, &analyticsOptOut)
 	if errors.Is(err, sql.ErrNoRows) {
 		return UserSettings{UserID: userID, Theme: "system", Timezone: m.cfg.Timezone, SyncEnabled: true, SyncIntervalSeconds: 21600}, nil
 	}
 	s.SyncEnabled = enabled == 1
+	s.AnalyticsOptOut = analyticsOptOut == 1
 	return s, err
+}
+
+// SetAnalyticsOptOut records the user's analytics preference.
+func (m *Manager) SetAnalyticsOptOut(ctx context.Context, userID string, optOut bool) error {
+	if err := m.EnsureSettings(ctx, userID); err != nil {
+		return err
+	}
+	_, err := m.db.ExecContext(ctx, `UPDATE user_settings SET analytics_opt_out=?, updated_at=? WHERE user_id=?`,
+		boolInt(optOut), db.Now(), userID)
+	return err
+}
+
+func boolInt(v bool) int {
+	if v {
+		return 1
+	}
+	return 0
 }
 
 func (m *Manager) EnsureSettings(ctx context.Context, userID string) error {

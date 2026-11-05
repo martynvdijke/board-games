@@ -26,6 +26,8 @@ type LegalData struct {
 	AnalyticsURL   string
 	Traces         bool
 	TRMNL          bool
+	Demo           bool
+	DemoEmail      string
 }
 
 func (h *Handler) legalData() LegalData {
@@ -36,9 +38,11 @@ func (h *Handler) legalData() LegalData {
 		BaseURL:       cfg.BaseURL,
 		SessionCookie: auth.SessionCookie,
 		OIDC:          cfg.OIDCIssuer != "",
-		Analytics:     cfg.UmamiURL != "",
+		Analytics:     cfg.UmamiURL != "" && cfg.UmamiWebsiteID != "",
 		AnalyticsURL:  cfg.UmamiURL,
 		Traces:        cfg.OTLPEndpoint != "",
+		Demo:          cfg.DemoUserEnabled,
+		DemoEmail:     cfg.DemoUserEmail,
 	}
 	if v := strings.TrimSpace(cfg.LegalControllerName); v != "" {
 		d.Controller = v

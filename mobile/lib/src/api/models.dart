@@ -57,6 +57,46 @@ bool boolOf(Map<String, dynamic> json, String key, [bool fallback = false]) {
   return fallback;
 }
 
+class DemoCredentials {
+  const DemoCredentials({
+    required this.enabled,
+    required this.email,
+    required this.name,
+    required this.token,
+  });
+
+  final bool enabled;
+  final String email;
+  final String name;
+  final String token;
+
+  bool get hasToken => token.trim().isNotEmpty;
+
+  factory DemoCredentials.fromJson(Map<String, dynamic> json) {
+    final map = lowerKeys(json);
+    return DemoCredentials(
+      enabled: boolOf(map, 'enabled'),
+      email: stringOf(map, 'email'),
+      name: stringOf(map, 'name'),
+      token: stringOf(map, 'token'),
+    );
+  }
+}
+
+class AuthConfig {
+  const AuthConfig({required this.demo});
+
+  final DemoCredentials demo;
+
+  factory AuthConfig.fromJson(Map<String, dynamic> json) {
+    final map = lowerKeys(json);
+    final demo = map['demo'];
+    return AuthConfig(
+      demo: DemoCredentials.fromJson(demo is Map ? lowerKeys(demo) : const {}),
+    );
+  }
+}
+
 class UserProfile {
   const UserProfile({
     required this.id,

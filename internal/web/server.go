@@ -35,21 +35,22 @@ type Handler struct {
 }
 
 type Page struct {
-	Title          string
-	AppName        string
-	BaseURL        string
-	User           *auth.User
-	CSRF           string
-	Active         string
-	Theme          string
-	Flash          string
-	FlashKind      string
-	Error          string
-	Data           any
-	Year           int
-	UmamiURL       string
-	UmamiWebsiteID string
-	Legal          LegalData
+	Title           string
+	AppName         string
+	BaseURL         string
+	User            *auth.User
+	CSRF            string
+	Active          string
+	Theme           string
+	Flash           string
+	FlashKind       string
+	Error           string
+	Data            any
+	Year            int
+	UmamiURL        string
+	UmamiWebsiteID  string
+	AnalyticsOptOut bool
+	Legal           LegalData
 }
 
 type OverviewData struct {
@@ -184,6 +185,7 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("GET /account/delete", h.accountDeletePage)
 	mux.HandleFunc("GET /auth/login", h.Auth.Login)
 	mux.HandleFunc("GET /auth/callback", h.Auth.Callback)
+	mux.HandleFunc("POST /auth/demo", h.demoLogin)
 	mux.HandleFunc("POST /logout", h.Auth.Logout)
 
 	mux.HandleFunc("GET /{$}", h.requireUser(h.overview))
@@ -212,6 +214,8 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("POST /settings/tokens/{id}/revoke", h.requireUser(h.revokeToken))
 	mux.HandleFunc("POST /settings/account/delete", h.requireUser(h.deleteAccount))
 	mux.HandleFunc("POST /settings/players/remove", h.requireUser(h.removePlayerName))
+	mux.HandleFunc("POST /settings/privacy", h.requireUser(h.savePrivacy))
+	mux.HandleFunc("GET /settings/export", h.requireUser(h.exportAccountData))
 	mux.HandleFunc("GET /trmnl/preview", h.requireUser(h.trmnlPreview))
 
 	return h.Auth.LoadSession(h.securityHeaders(h.Auth.RequireCSRF(mux)))
@@ -242,6 +246,12 @@ func (h *Handler) readyz(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(`{"status":"ready","database":"ok"}`))
 }
 
+type loginView struct {
+	Next, Error                    string
+	Demo                           bool
+	DemoEmail, DemoName, DemoToken string
+}
+
 func (h *Handler) loginPage(w http.ResponseWriter, r *http.Request) {
 	if a := auth.FromContext(r.Context()); a != nil && a.User != nil {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
@@ -250,7 +260,14 @@ func (h *Handler) loginPage(w http.ResponseWriter, r *http.Request) {
 	theme := cookieTheme(r)
 	p := h.page(r, "Sign in", "", "")
 	p.Theme = theme
-	p.Data = map[string]string{"Next": r.URL.Query().Get("next"), "Error": r.URL.Query().Get("error")}
+	data := loginView{Next: r.URL.Query().Get("next"), Error: r.URL.Query().Get("error")}
+	if h.Config.DemoUserEnabled {
+		data.Demo = true
+		data.DemoEmail = h.Config.DemoUserEmail
+		data.DemoName = h.Config.DemoUserName
+		data.DemoToken = h.Config.DemoUserToken
+	}
+	p.Data = data
 	h.render(w, r, "login.html", p)
 }
 
@@ -265,6 +282,7 @@ func (h *Handler) page(r *http.Request, title, active string, data any) Page {
 	if p.User != nil {
 		if s, err := h.Auth.Settings(r.Context(), p.User.ID); err == nil {
 			p.Theme = s.Theme
+			p.AnalyticsOptOut = s.AnalyticsOptOut
 		}
 	}
 	p.Flash = r.URL.Query().Get("flash")

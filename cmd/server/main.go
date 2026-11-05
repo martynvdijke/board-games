@@ -21,6 +21,7 @@ import (
 	"boardgames/internal/collection"
 	"boardgames/internal/config"
 	"boardgames/internal/db"
+	"boardgames/internal/demo"
 	"boardgames/internal/observability"
 	"boardgames/internal/plays"
 	"boardgames/internal/trmnl"
@@ -73,13 +74,19 @@ func run() error {
 	bggClient := bgg.NewClient(cfg.BGGBaseURL, cfg.BGGUserAgent, cfg.BGGRequestsPerSecond)
 	syncService := collection.NewSyncService(database, bggClient, games, playRepo, cfg)
 	trmnlService := trmnl.NewService(database, games, playRepo, cfg)
-	accountService := account.New(database)
+	setupMediaDir := filepath.Join(filepath.Dir(cfg.DatabasePath), "setup")
+	accountService := account.NewWithMedia(database, setupMediaDir)
 	imageDir := filepath.Join(filepath.Dir(cfg.DatabasePath), "covers")
 	images := trmnl.NewImageService(database, imageDir)
 
+	demoService := demo.New(database, authManager, cfg)
+	if err := demoService.Ensure(ctx); err != nil {
+		return fmt.Errorf("ensure demo account: %w", err)
+	}
+
 	webHandler := &web.Handler{
 		Config: cfg, Auth: authManager, Account: accountService, Games: games, Plays: playRepo, Sync: syncService,
-		TRMNL: trmnlService, Images: images, SetupMediaDir: filepath.Join(filepath.Dir(cfg.DatabasePath), "setup"), DB: database, MetricsHandler: providers.MetricsHandler(),
+		TRMNL: trmnlService, Images: images, SetupMediaDir: setupMediaDir, DB: database, MetricsHandler: providers.MetricsHandler(),
 	}
 	apiHandler := &api.Handler{
 		Config: cfg, Auth: authManager, Account: accountService, Games: games, Plays: playRepo, Sync: syncService,

@@ -118,8 +118,17 @@
   <section class="panel" id="privacy-controls" aria-labelledby="privacy-title">
     <div class="panel-head"><h2 id="privacy-title" class="section-title">Privacy controls</h2></div>
     <p class="panel-copy">Download a copy of your data, remove a third-party player name from your plays, or close the account. These links are also readable while signed out: <a href="/privacy">privacy policy</a> and <a href="/terms">terms of use</a>.</p>
+    <form method="post" action="/settings/privacy" class="stack privacy-analytics">
+      <input type="hidden" name="csrf_token" value="{{.CSRF}}">
+      <label class="check check--card">
+        <input type="checkbox" name="analytics_opt_out" value="1" {{if .AnalyticsOptOut}}checked{{end}} aria-describedby="analytics-help">
+        <span><strong>Do not load analytics on my account</strong><small>Takes effect after you save.</small></span>
+      </label>
+      <p class="fine-print" id="analytics-help">Analytics is optional and can be changed at any time. It records page views only; no account profile is built from it.</p>
+      <div class="form-actions"><button class="button button--ghost button--small" type="submit">Save privacy choice</button></div>
+    </form>
     <div class="form-actions">
-      <a class="button button--ghost" href="/api/v1/me/export">Download my data (JSON)</a>
+      <a class="button button--ghost" href="/settings/export">Download my data (JSON)</a>
     </div>
     <form method="post" action="/settings/players/remove" class="stack">
       <input type="hidden" name="csrf_token" value="{{.CSRF}}">

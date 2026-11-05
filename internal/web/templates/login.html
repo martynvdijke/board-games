@@ -25,6 +25,35 @@
       <p class="muted">Use the same account you use for the rest of your tools.</p>
       {{if .Data.Error}}<div class="callout callout--danger" role="alert">{{.Data.Error}}</div>{{end}}
       <a class="button button--primary button--wide" href="/auth/login{{if .Data.Next}}?next={{urlquery .Data.Next}}{{end}}">Continue with SSO <svg><use href="#i-arrow"/></svg></a>
+      {{if .Data.Demo}}
+      <aside class="login-demo" aria-labelledby="demo-title">
+        <div class="login-demo-head">
+          <h3 class="eyebrow" id="demo-title">Try the demo</h3>
+          <span class="status-badge">Shared account</span>
+        </div>
+        <p class="login-demo-copy">An open shelf with sample games and plays. Anyone can use it and it may be reset when the server restarts. Please do not enter personal data.</p>
+        <dl class="login-demo-creds">
+          <div>
+            <dt>Demo email</dt>
+            <dd><code>{{.Data.DemoEmail}}</code></dd>
+          </div>
+          <div>
+            <dt>Demo token</dt>
+            <dd>
+              <div class="copy-row">
+                <input type="text" readonly value="{{.Data.DemoToken}}" data-copy-value aria-label="Demo token" spellcheck="false">
+                <button class="button button--ghost button--small" type="button" data-copy><svg aria-hidden="true"><use href="#i-copy"/></svg> Copy</button>
+              </div>
+            </dd>
+          </div>
+        </dl>
+        <form method="post" action="/auth/demo">
+          {{if .Data.Next}}<input type="hidden" name="next" value="{{.Data.Next}}">{{end}}
+          <button class="button button--primary" type="submit">Open the demo shelf <svg aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        </form>
+        <p class="fine-print">Use the token to sign in from the companion app.</p>
+      </aside>
+      {{end}}
       <p class="fine-print">Your collection is private. BoardGameGeek is read-only in this version; plays and ratings stay local.</p>
     </div>
   </div>

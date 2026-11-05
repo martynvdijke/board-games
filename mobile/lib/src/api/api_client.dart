@@ -60,6 +60,61 @@ class ApiClient {
     return uri.replace(queryParameters: {...uri.queryParameters, ...query});
   }
 
+  /// Loads the public auth configuration. This endpoint is intentionally
+  /// unauthenticated, so no stored token is ever sent with the request.
+  static Future<AuthConfig> fetchAuthConfig(
+    String rawServerUrl, {
+    http.Client? client,
+  }) async {
+    final baseUrl = normalizeServerUrl(rawServerUrl);
+    if (baseUrl.isEmpty) {
+      throw const ApiException('Enter your shelf address to load the demo.');
+    }
+    final span = Telemetry.instance.beginSpan(
+      'HTTP GET /auth/config',
+      attributes: {
+        'http.request.method': 'GET',
+        'url.path': '/api/v1/auth/config',
+        'shelf.api': true,
+      },
+      kind: 3,
+    );
+    final httpClient = client ?? http.Client();
+    try {
+      final request =
+          http.Request('GET', Uri.parse('$baseUrl/api/v1/auth/config'))
+            ..headers.addAll({
+              'Accept': 'application/json',
+              'traceparent': span.traceparent,
+            });
+      final streamed = await httpClient
+          .send(request)
+          .timeout(const Duration(seconds: 25));
+      final response = await http.Response.fromStream(streamed);
+      final decoded = _decode(response.body);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final error = asMap(decoded['error']);
+        throw ApiException(
+          stringOf(error, 'message', 'Could not load the demo account.'),
+          statusCode: response.statusCode,
+          code: stringOf(error, 'code', 'request_failed'),
+        );
+      }
+      span.end(httpStatus: response.statusCode);
+      return AuthConfig.fromJson(asMap(decoded['data']));
+    } on ApiException catch (error) {
+      span.end(httpStatus: error.statusCode, failure: error);
+      rethrow;
+    } catch (error) {
+      span.end(failure: error);
+      throw const ApiException(
+        'Could not reach the server. Check the URL and your connection.',
+      );
+    } finally {
+      if (client == null) httpClient.close();
+    }
+  }
+
   Future<UserProfile> me() async {
     final data = await _send('GET', '/me', route: '/me');
     return UserProfile.fromJson(asMap(data['data']));
@@ -242,7 +297,7 @@ class ApiClient {
     }
   }
 
-  Map<String, dynamic> _decode(String body) {
+  static Map<String, dynamic> _decode(String body) {
     if (body.trim().isEmpty) return const {};
     try {
       final decoded = jsonDecode(body);

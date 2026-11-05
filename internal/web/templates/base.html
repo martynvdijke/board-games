@@ -22,7 +22,7 @@
     })();
   </script>
   <script type="module" src="{{asset "src/main.ts"}}"></script>
-  {{if and .UmamiURL .UmamiWebsiteID}}<script defer src="{{.UmamiURL}}/script.js" data-website-id="{{.UmamiWebsiteID}}"></script>{{end}}
+  {{if and .UmamiURL .UmamiWebsiteID (not .AnalyticsOptOut)}}<script defer src="{{.UmamiURL}}/script.js" data-website-id="{{.UmamiWebsiteID}}"></script>{{end}}
 </head>
 <body>
   <svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">

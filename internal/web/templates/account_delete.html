@@ -25,10 +25,12 @@
     <li>Your BoardGameGeek username, sync settings, theme and timezone.</li>
     <li>Every shelf entry, including private notes, location, condition and price paid.</li>
     <li>Every play you own, including its location, notes and the player-name rows attached to it.</li>
+    <li>Every uploaded setup-guide photo and its stored file in the setup media directory.</li>
     <li>Every way into the account: browser sessions and personal API tokens.</li>
     <li>Sync history associated with the account.</li>
   </ul>
-  <p>All of this happens in one database transaction. If any step fails, nothing is deleted.</p>
+  <p>Database rows are deleted in one transaction. If any database step fails, nothing is deleted. Stored setup photos are removed after that transaction commits.</p>
+  <p>{{if .Legal.Demo}}If the account is the public demo account, it is not gone for good: the server recreates it from sample data on the next restart. Its contents are sample data, not personal data. Deleting the demo account while the instance is running leaves it unavailable until that restart.{{end}}</p>
 
   <h2>What is not removed</h2>
   <ul>

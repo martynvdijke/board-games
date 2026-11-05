@@ -8,6 +8,12 @@
   <p>You need an account to use the shelf. Sign-in is handled by the configured OpenID Connect provider (Authelia on this deployment). Keep your provider credentials to yourself and use an address you can receive mail at. You are responsible for activity under your account and for any API tokens you create. If you think someone else has access, revoke the tokens and sign out.</p>
   <p>You can delete your account at any time from <a href="/account/delete">Delete your account</a>. Administrators may suspend accounts that break these terms.</p>
 
+  {{if .Legal.Demo}}
+  <h2>Demo account</h2>
+  <p>The public demo at <strong>{{.Legal.DemoEmail}}</strong> is a shared account, open to anyone.</p>
+  <p>Do not use it to store personal, confidential or unlawful content. Anything entered there can be seen and changed by other visitors, and the operator may reset the demo and its data at any time, including on restart.</p>
+  {{end}}
+
   <h2>What you post</h2>
   <p>You keep ownership of your shelf notes, play logs and ratings. By storing them here you give this instance permission to keep and display them to you through the web app, API and any client you authorise. That permission ends when the content is deleted, except for copies already in backups that have not yet rotated.</p>
   <p>Player names you enter may identify other people. Only record them with their knowledge where the law requires it, and use the removal tool in Settings if someone asks you to stop.</p>

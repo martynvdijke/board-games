@@ -9,6 +9,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"boardgames/internal/db"
@@ -27,10 +30,17 @@ var (
 // Service performs whole-account operations. It deliberately uses database/sql
 // directly because deletion spans every table that references a user.
 type Service struct {
-	DB *sql.DB
+	DB       *sql.DB
+	MediaDir string
 }
 
 func New(database *sql.DB) *Service { return &Service{DB: database} }
+
+// NewWithMedia lets account deletion also remove uploaded setup photographs
+// from the filesystem after the database transaction commits.
+func NewWithMedia(database *sql.DB, mediaDir string) *Service {
+	return &Service{DB: database, MediaDir: mediaDir}
+}
 
 // Delete removes the account and every row that belongs to it in one
 // transaction. Plays are owned by one account and are not shared with other
@@ -48,6 +58,27 @@ func (s *Service) Delete(ctx context.Context, userID string) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	var mediaFiles []string
+	if s.MediaDir != "" {
+		rows, err := tx.QueryContext(ctx, `SELECT filename FROM game_setup_images WHERE user_id = ?`, userID)
+		if err != nil {
+			return err
+		}
+		for rows.Next() {
+			var name string
+			if err := rows.Scan(&name); err != nil {
+				rows.Close()
+				return err
+			}
+			mediaFiles = append(mediaFiles, name)
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return err
+		}
+		rows.Close()
+	}
+
 	// Revoke credentials and delete personal rows first. If the guard below
 	// refuses the deletion the transaction rolls back, restoring all of them.
 	for _, stmt := range []string{
@@ -57,6 +88,7 @@ func (s *Service) Delete(ctx context.Context, userID string) error {
 		`DELETE FROM user_games WHERE user_id = ?`,
 		`DELETE FROM play_players WHERE play_id IN (SELECT id FROM plays WHERE user_id = ?)`,
 		`DELETE FROM plays WHERE user_id = ?`,
+		`DELETE FROM game_setup_images WHERE user_id = ?`,
 		`DELETE FROM sync_runs WHERE user_id = ?`,
 	} {
 		if _, err := tx.ExecContext(ctx, stmt, userID); err != nil {
@@ -65,7 +97,7 @@ func (s *Service) Delete(ctx context.Context, userID string) error {
 	}
 
 	res, err := tx.ExecContext(ctx, `DELETE FROM users WHERE id = ? AND (role <> 'admin' OR
-		(SELECT COUNT(*) FROM users WHERE role = 'admin') > 1)`, userID)
+		(SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_demo = 0) > 1)`, userID)
 	if err != nil {
 		return err
 	}
@@ -84,7 +116,44 @@ func (s *Service) Delete(ctx context.Context, userID string) error {
 		}
 		return ErrNotFound
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	// Files are only removed after a successful commit. A failed transaction
+	// must leave the stored images in place for the still-existing account.
+	for _, name := range mediaFiles {
+		path, ok := safeMediaPath(s.MediaDir, name)
+		if !ok {
+			slog.Warn("skip unsafe setup image path", "name", name)
+			continue
+		}
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			slog.Warn("remove setup image", "path", path, "error", err)
+		}
+	}
+	return nil
+}
+
+// safeMediaPath rejects empty, parent, and escaping names, and only returns a
+// path that stays inside the configured media directory.
+func safeMediaPath(dir, name string) (string, bool) {
+	name = strings.TrimSpace(name)
+	if name == "" || name == "." || name == ".." {
+		return "", false
+	}
+	root, err := filepath.Abs(dir)
+	if err != nil {
+		return "", false
+	}
+	target, err := filepath.Abs(filepath.Join(root, name))
+	if err != nil {
+		return "", false
+	}
+	rel, err := filepath.Rel(root, target)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || filepath.IsAbs(rel) {
+		return "", false
+	}
+	return target, true
 }
 
 type exportProfile struct {
@@ -93,6 +162,7 @@ type exportProfile struct {
 	Name        string `json:"name"`
 	AvatarURL   string `json:"avatar_url"`
 	Role        string `json:"role"`
+	IsDemo      bool   `json:"is_demo"`
 	CreatedAt   string `json:"created_at"`
 	UpdatedAt   string `json:"updated_at"`
 	LastLoginAt string `json:"last_login_at,omitempty"`
@@ -105,6 +175,7 @@ type exportSettings struct {
 	BGGSyncInterval   int    `json:"bgg_sync_interval_seconds"`
 	Theme             string `json:"theme"`
 	Timezone          string `json:"timezone"`
+	AnalyticsOptOut   bool   `json:"analytics_opt_out"`
 	SettingsUpdatedAt string `json:"updated_at"`
 }
 
@@ -178,10 +249,10 @@ func (s *Service) Export(ctx context.Context, userID string) ([]byte, error) {
 		return nil, ErrInvalid
 	}
 	out := Export{ExportedAt: db.Now(), Shelf: []exportShelf{}, Plays: []exportPlay{}, Tokens: []exportToken{}}
-	err := s.DB.QueryRowContext(ctx, `SELECT id,email,name,avatar_url,role,created_at,updated_at,coalesce(last_login_at,'')
+	err := s.DB.QueryRowContext(ctx, `SELECT id,email,name,avatar_url,role,is_demo,created_at,updated_at,coalesce(last_login_at,'')
 		FROM users WHERE id = ?`, userID).
 		Scan(&out.Profile.ID, &out.Profile.Email, &out.Profile.Name, &out.Profile.AvatarURL, &out.Profile.Role,
-			&out.Profile.CreatedAt, &out.Profile.UpdatedAt, &out.Profile.LastLoginAt)
+			&out.Profile.IsDemo, &out.Profile.CreatedAt, &out.Profile.UpdatedAt, &out.Profile.LastLoginAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -190,10 +261,10 @@ func (s *Service) Export(ctx context.Context, userID string) ([]byte, error) {
 	}
 
 	var st exportSettings
-	var syncEnabled int
+	var syncEnabled, analyticsOptOut int
 	err = s.DB.QueryRowContext(ctx, `SELECT bgg_username,coalesce(bgg_username_verified_at,''),bgg_sync_enabled,
-		bgg_sync_interval_seconds,theme,timezone,updated_at FROM user_settings WHERE user_id = ?`, userID).
-		Scan(&st.BGGUsername, &st.BGGVerifiedAt, &syncEnabled, &st.BGGSyncInterval, &st.Theme, &st.Timezone, &st.SettingsUpdatedAt)
+		bgg_sync_interval_seconds,theme,timezone,analytics_opt_out,updated_at FROM user_settings WHERE user_id = ?`, userID).
+		Scan(&st.BGGUsername, &st.BGGVerifiedAt, &syncEnabled, &st.BGGSyncInterval, &st.Theme, &st.Timezone, &analyticsOptOut, &st.SettingsUpdatedAt)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		// No settings row is normal for an account that never opened Settings.
@@ -201,6 +272,7 @@ func (s *Service) Export(ctx context.Context, userID string) ([]byte, error) {
 		return nil, err
 	default:
 		st.BGGSyncEnabled = syncEnabled == 1
+		st.AnalyticsOptOut = analyticsOptOut == 1
 		out.Settings = &st
 	}
 

@@ -61,7 +61,8 @@ void main() {
     expect(captured.url.queryParameters['limit'], '25');
   });
 
-  test('error envelope becomes a typed exception', () async {    final client = ApiClient(
+  test('error envelope becomes a typed exception', () async {
+    final client = ApiClient(
       serverUrl: 'https://shelf.example.com',
       token: 'bg_test',
       client: MockClient(
@@ -89,6 +90,93 @@ void main() {
               'field hint',
               'Use YYYY-MM-DD.',
             ),
+      ),
+    );
+  });
+
+  test(
+    'fetchAuthConfig parses an enabled demo without sending a token',
+    () async {
+      late http.Request captured;
+      final config = await ApiClient.fetchAuthConfig(
+        'shelf.example.com/api/v1/',
+        client: MockClient((request) async {
+          captured = request;
+          return http.Response(
+            jsonEncode({
+              'data': {
+                'demo': {
+                  'enabled': true,
+                  'email': 'demo@theshelf.local',
+                  'name': 'Shelf Demo',
+                  'token': 'bg_demo_token',
+                },
+              },
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+
+      expect(config.demo.enabled, isTrue);
+      expect(config.demo.email, 'demo@theshelf.local');
+      expect(config.demo.name, 'Shelf Demo');
+      expect(config.demo.token, 'bg_demo_token');
+      expect(config.demo.hasToken, isTrue);
+      expect(captured.method, 'GET');
+      expect(
+        captured.url.toString(),
+        'https://shelf.example.com/api/v1/auth/config',
+      );
+      expect(captured.headers.containsKey('Authorization'), isFalse);
+    },
+  );
+
+  test('fetchAuthConfig tolerates disabled and missing fields', () async {
+    final config = await ApiClient.fetchAuthConfig(
+      'https://shelf.example.com',
+      client: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'data': {
+              'demo': {'enabled': false},
+            },
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        ),
+      ),
+    );
+
+    expect(config.demo.enabled, isFalse);
+    expect(config.demo.email, isEmpty);
+    expect(config.demo.name, isEmpty);
+    expect(config.demo.token, isEmpty);
+    expect(config.demo.hasToken, isFalse);
+  });
+
+  test('fetchAuthConfig maps an error envelope to ApiException', () async {
+    await expectLater(
+      ApiClient.fetchAuthConfig(
+        'https://shelf.example.com',
+        client: MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'error': {
+                'code': 'not_found',
+                'message': 'Auth config is unavailable.',
+              },
+            }),
+            404,
+          ),
+        ),
+      ),
+      throwsA(
+        isA<ApiException>()
+            .having((e) => e.statusCode, 'statusCode', 404)
+            .having((e) => e.code, 'code', 'not_found')
+            .having((e) => e.message, 'message', 'Auth config is unavailable.'),
       ),
     );
   });

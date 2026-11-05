@@ -48,6 +48,10 @@ type Config struct {
 	DevFakeAuth          bool
 	DevFakeEmail         string
 	DevFakeName          string
+	DemoUserEnabled      bool
+	DemoUserEmail        string
+	DemoUserName         string
+	DemoUserToken        string
 	LogLevel             slog.Level
 	Timezone             string
 	Version              string
@@ -89,6 +93,10 @@ func Load() (*Config, error) {
 		DevFakeAuth:          boolean("DEV_FAKE_AUTH", false),
 		DevFakeEmail:         env("DEV_FAKE_EMAIL", "owner@example.com"),
 		DevFakeName:          env("DEV_FAKE_NAME", "Shelf Owner"),
+		DemoUserEnabled:      boolean("DEMO_USER_ENABLED", isDemoHost(env("BASE_URL", "http://localhost:6270"))),
+		DemoUserEmail:        strings.ToLower(strings.TrimSpace(env("DEMO_USER_EMAIL", "demo@theshelf.local"))),
+		DemoUserName:         env("DEMO_USER_NAME", "Shelf Demo"),
+		DemoUserToken:        strings.TrimSpace(os.Getenv("DEMO_USER_TOKEN")),
 		LogLevel:             level(env("LOG_LEVEL", "info")),
 		Timezone:             env("TZ", "UTC"),
 		Version:              env("VERSION", "dev"),
@@ -142,6 +150,15 @@ func (c *Config) Validate() error {
 	if err != nil || u.Scheme == "" || u.Host == "" {
 		return fmt.Errorf("BASE_URL must be an absolute URL, got %q", c.BaseURL)
 	}
+	if c.DemoUserEnabled && c.Env == "production" && c.DemoUserToken == "" {
+		return errors.New("DEMO_USER_TOKEN is required when the demo account is enabled in production")
+	}
+	if c.DemoUserToken != "" && !strings.HasPrefix(c.DemoUserToken, "bg_") {
+		return errors.New("DEMO_USER_TOKEN must begin with bg_")
+	}
+	if c.DemoUserEnabled && c.DemoUserEmail == "" {
+		return errors.New("DEMO_USER_EMAIL must not be empty when the demo account is enabled")
+	}
 	if c.Env == "production" {
 		if c.DevFakeAuth {
 			return errors.New("DEV_FAKE_AUTH must not be enabled in production")
@@ -170,6 +187,15 @@ func (c *Config) Validate() error {
 		return errors.New("SESSION_TTL must be positive")
 	}
 	return nil
+}
+
+// isDemoHost reports whether the public host is the demonstration deployment.
+func isDemoHost(baseURL string) bool {
+	u, err := url.Parse(strings.TrimSpace(baseURL))
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(u.Hostname(), "board-games.vandijke.xyz")
 }
 
 // SecureCookies reports whether public URLs use HTTPS.
@@ -210,6 +236,8 @@ func (c *Config) LogValue() slog.Value {
 		slog.String("legal_controller", c.LegalControllerName),
 		slog.String("legal_contact_email", c.LegalContactEmail),
 		slog.Bool("dev_fake_auth", c.DevFakeAuth),
+		slog.Bool("demo_user_enabled", c.DemoUserEnabled),
+		slog.String("demo_user_token", redact(c.DemoUserToken)),
 		slog.String("timezone", c.Timezone),
 		slog.String("version", c.Version),
 	)

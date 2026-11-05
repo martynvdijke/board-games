@@ -270,3 +270,140 @@ func TestPlayerRemovalWebIsScopedToOwnPlays(t *testing.T) {
 		}
 	}
 }
+
+func TestDemoLoginStartsSessionWhenEnabled(t *testing.T) {
+	f := setupLegal(t)
+	f.handler.Config.DemoUserEnabled = true
+	f.handler.Config.DemoUserEmail = "demo@theshelf.local"
+	f.handler.Config.DemoUserName = "Shelf Demo"
+	now := db.Now()
+	if _, err := f.db.Exec(`INSERT INTO users(id,email,name,role,is_demo,created_at,updated_at) VALUES('demo-user',?,'Shelf Demo','member',1,?,?)`,
+		f.handler.Config.DemoUserEmail, now, now); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/demo", strings.NewReader("next=%2Fplays"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+	f.handler.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("demo login: %d %s", rr.Code, rr.Body)
+	}
+	if loc := rr.Header().Get("Location"); loc != "/plays" {
+		t.Errorf("redirect = %q, want /plays", loc)
+	}
+	found := false
+	for _, c := range rr.Result().Cookies() {
+		if c.Name == auth.SessionCookie && c.Value != "" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("demo login did not set a session cookie")
+	}
+}
+
+func TestDemoLoginRejectsExternalNextAndDisabledState(t *testing.T) {
+	f := setupLegal(t)
+	req := httptest.NewRequest(http.MethodPost, "/auth/demo", nil)
+	rr := httptest.NewRecorder()
+	f.handler.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("disabled demo login = %d, want 404", rr.Code)
+	}
+
+	f.handler.Config.DemoUserEnabled = true
+	f.handler.Config.DemoUserEmail = "demo@theshelf.local"
+	now := db.Now()
+	if _, err := f.db.Exec(`INSERT INTO users(id,email,name,role,is_demo,created_at,updated_at) VALUES('demo-user',?,'Shelf Demo','member',1,?,?)`,
+		f.handler.Config.DemoUserEmail, now, now); err != nil {
+		t.Fatal(err)
+	}
+	req = httptest.NewRequest(http.MethodPost, "/auth/demo", strings.NewReader("next=%2F%2Fevil.example"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr = httptest.NewRecorder()
+	f.handler.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("demo login: %d %s", rr.Code, rr.Body)
+	}
+	if loc := rr.Header().Get("Location"); loc != "/" {
+		t.Errorf("external next redirected to %q, want /", loc)
+	}
+}
+
+func TestSavePrivacyPersistsOptOut(t *testing.T) {
+	f := setupLegal(t)
+	rr := f.post(t, "/settings/privacy", url.Values{"analytics_opt_out": {"1"}}, f.csrf)
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("save privacy: %d %s", rr.Code, rr.Body)
+	}
+	if loc := rr.Header().Get("Location"); !strings.HasPrefix(loc, "/settings?") || !strings.HasSuffix(loc, "#privacy-controls") {
+		t.Errorf("redirect = %q", loc)
+	}
+	var optOut int
+	if err := f.db.QueryRow(`SELECT analytics_opt_out FROM user_settings WHERE user_id=?`, f.user.ID).Scan(&optOut); err != nil {
+		t.Fatal(err)
+	}
+	if optOut != 1 {
+		t.Errorf("analytics_opt_out = %d, want 1", optOut)
+	}
+
+	// A later submission without the checkbox clears the preference.
+	rr = f.post(t, "/settings/privacy", url.Values{}, f.csrf)
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("save privacy: %d %s", rr.Code, rr.Body)
+	}
+	if err := f.db.QueryRow(`SELECT analytics_opt_out FROM user_settings WHERE user_id=?`, f.user.ID).Scan(&optOut); err != nil {
+		t.Fatal(err)
+	}
+	if optOut != 0 {
+		t.Errorf("analytics_opt_out = %d, want 0", optOut)
+	}
+}
+
+func TestCookieSessionCanDownloadExport(t *testing.T) {
+	f := setupLegal(t)
+	rr := f.get(t, "/settings/export")
+	if rr.Code != http.StatusOK {
+		t.Fatalf("export: %d %s", rr.Code, rr.Body)
+	}
+	if got := rr.Header().Get("Content-Disposition"); !strings.Contains(got, "attachment") {
+		t.Errorf("Content-Disposition = %q", got)
+	}
+	body := rr.Body.String()
+	for _, want := range []string{`"profile"`, `"owner@example.com"`, `"shelf"`, `"plays"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("export missing %s", want)
+		}
+	}
+}
+
+func TestAnalyticsOptOutSuppressesUmamiScript(t *testing.T) {
+	f := setupLegal(t)
+	f.handler.Config.UmamiURL = "https://analytics.example"
+	f.handler.Config.UmamiWebsiteID = "site-id"
+
+	rr := f.get(t, "/privacy")
+	if !strings.Contains(rr.Body.String(), "data-website-id") {
+		t.Fatal("analytics script missing before opt-out")
+	}
+	rr = f.post(t, "/settings/privacy", url.Values{"analytics_opt_out": {"1"}}, f.csrf)
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("save privacy: %d %s", rr.Code, rr.Body)
+	}
+	rr = f.get(t, "/privacy")
+	body := rr.Body.String()
+	if strings.Contains(body, "data-website-id") || strings.Contains(body, "analytics.example/script.js") {
+		t.Error("analytics script rendered for an opted-out user")
+	}
+
+	// Clearing the preference restores the script.
+	rr = f.post(t, "/settings/privacy", url.Values{}, f.csrf)
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("clear privacy: %d %s", rr.Code, rr.Body)
+	}
+	rr = f.get(t, "/privacy")
+	if !strings.Contains(rr.Body.String(), "data-website-id") {
+		t.Error("analytics script not restored after clearing the opt-out")
+	}
+}

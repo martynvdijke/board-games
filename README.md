@@ -57,7 +57,7 @@ go run ./cmd/fakebgg -addr :6291
 BGG_BASE_URL=http://127.0.0.1:6291/xmlapi2 go run ./cmd/server
 ```
 
-The seed command sets the demo user's BGG username to `alexplays`, which the
+The seed command sets the seeded user's BGG username to `alexplays`, which the
 fake server understands.
 
 ## Docker
@@ -201,6 +201,10 @@ All configuration is environment-based. The complete annotated list lives in
 | `BGG_USER_AGENT` | dev placeholder | Must contain a contact in parentheses in production |
 | `BGG_API_TOKEN` | empty | Application-scoped BGG API token; `_FILE` reads a mounted secret |
 | `BGG_SYNC_INTERVAL` | `6h` | Default schedule for new users |
+| `DEMO_USER_ENABLED` | `false` | Public demo account; defaults on only for the Play review host |
+| `DEMO_USER_EMAIL` | `demo@theshelf.local` | Demo account email shown to visitors |
+| `DEMO_USER_NAME` | `Shelf Demo` | Demo display name |
+| `DEMO_USER_TOKEN` | empty | Published read+write token for the mobile demo; required when enabled in production |
 | `TRUSTED_PROXIES` | loopback | CIDRs allowed to set forwarded headers |
 | `METRICS_ENABLED` | `true` | Expose Prometheus metrics at `/metrics` |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | empty | Optional OTLP trace/metric export |
@@ -213,6 +217,28 @@ All configuration is environment-based. The complete annotated list lives in
 | `DEV_FAKE_AUTH` | `false` | Local/e2e only; never in production |
 
 Secrets are redacted from the startup config log.
+
+### Play Store demo account
+
+The Play review host publishes a shared, non-admin demo so reviewers can try
+the app without an OIDC account. Leave it off on private instances.
+
+1. Set `DEMO_USER_ENABLED=true` (it is on by default only for
+   `board-games.vandijke.xyz`).
+2. Generate a random secret in the shell:
+   `printf 'bg_%s\n' "$(openssl rand -hex 32)"`. Put that value in
+   `DEMO_USER_TOKEN`. The server hashes it at boot and installs it on the demo
+   account, so it is never stored in plaintext. Rotate by generating a new value
+   and restarting. In production the token must start with `bg_`.
+3. Optionally change `DEMO_USER_EMAIL` and `DEMO_USER_NAME`. Restart the server;
+   the demo user and sample data are created if missing.
+
+The web login page then shows **Try the demo**, and
+`GET /api/v1/auth/config` exposes the demo email and token to the mobile app.
+Anyone can sign in and write to the demo, so treat it as public and keep no real
+personal data in it. The operator may reset it on restart, and it is recreated
+with sample data if it is deleted. Rotate the token like any other credential.
+Disabling the demo revokes the demo token and any active demo sessions.
 
 ## Development
 
@@ -281,6 +307,9 @@ beacon. The app emits a deliberately small, allowlisted set of events:
 
 Game names, search text, notes, and player names are never sent. Unknown events
 or properties are dropped in the client helper before they reach Umami.
+Signed-in users can object to analytics under **Settings → Privacy controls**,
+which stores a per-user opt-out; while it is set the Umami script is not loaded
+for that user. This is the GDPR Article 21 objection route.
 
 ## CI, releases, and dependency updates
 

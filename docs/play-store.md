@@ -34,18 +34,23 @@ copies until they rotate.
 ## App access for review
 
 The app needs a working instance and a personal API token; OIDC happens on the
-web only.
-
-Provide reviewers with:
+web only. The public host runs a shared demo account so reviewers do not need a
+private login:
 
 - Server URL: `https://board-games.vandijke.xyz`
-- A dedicated review account in Authelia, created in advance.
-- A `read` + `write` personal token for that account, created under
-  **Settings → API tokens** and pasted into the app's onboarding screen.
-- Instructions: enter the server URL and token, then use Shelf, Play log,
-  Stats and Settings. Do not publish production admin credentials.
+- On the login page, choose **Try the demo**, or open
+  `GET /api/v1/auth/config` and use the demo email and token returned there. In
+  the mobile onboarding screen, choose **Try the demo account**.
+- Demo email: the configured `DEMO_USER_EMAIL` (default `demo@theshelf.local`);
+  display name: the configured `DEMO_USER_NAME` (default `Shelf Demo`).
+- The account is public, non-admin and writable by anyone. The operator may reset
+  it on restart, and sample data is recreated if the demo is deleted.
 
-Rotate or delete the review token after the review.
+If the demo is disabled, or the reviewer needs a stable private account, fall
+back to a dedicated review account in Authelia. Create it in advance and issue a
+`read` + `write` personal token under **Settings → API tokens**. Do not publish
+production admin credentials. Rotate or delete the private review token after
+the review; the demo token can be rotated by changing `DEMO_USER_TOKEN`.
 
 ## Data safety form
 
@@ -56,7 +61,7 @@ Answer from the code, not aspiration. The current mapping:
 | Email address | Yes | No | Account management, authentication | No | Comes from OIDC; stored in `users.email` |
 | Name | Yes | No | Account management, display | No | OIDC display name |
 | Profile photo / avatar URL | Yes | No | Display | Yes | OIDC avatar URL; empty if provider has none |
-| User IDs | Yes | No | Account management | No | Internal user id and OIDC subject |
+| User IDs | Yes | No | Account management | No | Internal user id |
 | Other user-generated content | Yes | No | App functionality | Yes | Shelf notes, location, condition, play notes and free-text player names |
 | App activity / in-app actions | Yes | No | App functionality | No | Plays, ratings, shelf state and sync history |
 | App info and performance / diagnostics | Yes if OTLP is configured | No | Diagnostics | Yes | Server and client OpenTelemetry spans; disabled when endpoint is empty |
@@ -106,8 +111,11 @@ diagnostics.
 ## Before each release
 
 1. Set `LEGAL_*` values and verify `/privacy`, `/terms` and `/account/delete`
-   load signed out.
-2. Run `go test ./...` and the mobile tests.
-3. Create a fresh review token and confirm deletion works end to end with a
-   throwaway account.
-4. Update the Data safety answers if a processor or permission changed.
+   load signed out at the public URL.
+2. Confirm **Try the demo** signs in on the web and **Try the demo account**
+   works in a clean app install, and that both still point at a reachable
+   server.
+3. Run `go test ./...` and the mobile tests.
+4. Create a fresh review token and confirm deletion works end to end with a
+   throwaway account, including any uploaded setup photos.
+5. Update the Data safety answers if a processor or permission changed.

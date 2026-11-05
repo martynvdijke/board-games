@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 
 import '../api/api_client.dart';
 import '../api/api_exception.dart';
@@ -96,7 +97,11 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
-  Future<bool> signIn(String rawServer, String rawToken) async {
+  Future<bool> signIn(
+    String rawServer,
+    String rawToken, {
+    http.Client? client,
+  }) async {
     final server = ApiClient.normalizeServerUrl(rawServer);
     final token = rawToken.trim();
     if (server.isEmpty || token.isEmpty) {
@@ -106,9 +111,13 @@ class AuthController extends Notifier<AuthState> {
       return false;
     }
     state = state.copyWith(error: '', serverUrl: server, token: token);
-    final client = ApiClient(serverUrl: server, token: token);
+    final apiClient = ApiClient(
+      serverUrl: server,
+      token: token,
+      client: client,
+    );
     try {
-      final profile = await client.me();
+      final profile = await apiClient.me();
       await _storage.save(server, token);
       state = AuthState(
         status: AuthStatus.authenticated,
@@ -134,8 +143,51 @@ class AuthController extends Notifier<AuthState> {
       );
       return false;
     } finally {
-      client.close();
+      if (client == null) apiClient.close();
     }
+  }
+
+  /// Signs in with the public demo account advertised by the server. The
+  /// config request is unauthenticated and no stored token is ever reused.
+  Future<bool> signInWithDemo(String rawServer, {http.Client? client}) async {
+    final server = ApiClient.normalizeServerUrl(rawServer);
+    if (server.isEmpty) {
+      state = state.copyWith(
+        status: AuthStatus.unauthenticated,
+        error: 'Enter your shelf address to try the demo.',
+      );
+      return false;
+    }
+    state = state.copyWith(error: '', serverUrl: server);
+    AuthConfig config;
+    try {
+      config = await ApiClient.fetchAuthConfig(server, client: client);
+    } on ApiException catch (error) {
+      state = AuthState(
+        status: AuthStatus.unauthenticated,
+        serverUrl: server,
+        error: error.message.isEmpty
+            ? 'Could not load the demo account. Try again in a moment.'
+            : error.message,
+      );
+      return false;
+    } catch (_) {
+      state = AuthState(
+        status: AuthStatus.unauthenticated,
+        serverUrl: server,
+        error: 'Could not load the demo account. Try again in a moment.',
+      );
+      return false;
+    }
+    if (!config.demo.enabled || !config.demo.hasToken) {
+      state = AuthState(
+        status: AuthStatus.unauthenticated,
+        serverUrl: server,
+        error: 'The demo account is not available on this server.',
+      );
+      return false;
+    }
+    return signIn(server, config.demo.token, client: client);
   }
 
   Future<void> signOut() async {

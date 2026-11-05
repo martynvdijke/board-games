@@ -49,6 +49,21 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     }
   }
 
+  Future<void> _tryDemo() async {
+    FocusScope.of(context).unfocus();
+    setState(() => _busy = true);
+    final ok = await ref
+        .read(authControllerProvider.notifier)
+        .signInWithDemo(_server.text);
+    if (mounted) {
+      setState(() => _busy = false);
+      if (!ok) {
+        final message = ref.read(authControllerProvider).error;
+        if (message.isNotEmpty) showShelfSnack(context, message, error: true);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -298,6 +313,43 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                                         ],
                                       ),
                               ),
+                            ),
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton(
+                                onPressed: _busy ? null : _tryDemo,
+                                child: _busy
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.explore_outlined,
+                                            size: 18,
+                                          ),
+                                          SizedBox(width: 8),
+                                          Text('Try the demo account'),
+                                        ],
+                                      ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Loads a shared sample shelf that may be reset. No token needed.',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                    height: 1.4,
+                                  ),
                             ),
                             const SizedBox(height: 18),
                             Container(

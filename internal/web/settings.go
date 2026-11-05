@@ -37,6 +37,27 @@ func (h *Handler) settingsPage(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, "settings.html", p)
 }
 
+// exportAccountData serves the signed-in user's JSON export through the web
+// session, because the API route is bearer-authenticated only.
+func (h *Handler) exportAccountData(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := contextWithTimeout(r, 30*time.Second)
+	defer cancel()
+	user := auth.UserFromContext(r.Context())
+	if h.Account == nil {
+		http.Error(w, "export is not configured", http.StatusInternalServerError)
+		return
+	}
+	data, err := h.Account.Export(ctx, user.ID)
+	if err != nil {
+		h.errorPage(w, r, http.StatusInternalServerError, "We couldn't build your export", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="the-shelf-export.json"`)
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write(data)
+}
+
 func (h *Handler) saveBGG(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := contextWithTimeout(r, 40*time.Second)
 	defer cancel()

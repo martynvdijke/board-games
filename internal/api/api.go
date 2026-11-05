@@ -23,6 +23,7 @@ import (
 	"boardgames/internal/auth"
 	"boardgames/internal/collection"
 	"boardgames/internal/config"
+	"boardgames/internal/observability"
 	"boardgames/internal/plays"
 	"boardgames/internal/trmnl"
 )
@@ -45,6 +46,9 @@ func (h *Handler) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /docs", h.docs)
 	mux.HandleFunc("GET /openapi.json", h.openapi)
+	// Public discovery endpoint for companion apps; it deliberately bypasses
+	// bearer authentication so a fresh install can learn the demo credentials.
+	mux.Handle("GET /v1/auth/config", h.rateLimit(http.HandlerFunc(h.authConfig)))
 
 	v1 := http.NewServeMux()
 	v1.Handle("GET /me", auth.RequireScope("read", http.HandlerFunc(h.me)))
@@ -650,9 +654,10 @@ func (l *limiter) allow(key string, limit int) bool {
 
 func (h *Handler) rateLimit(next http.Handler) http.Handler {
 	l := newLimiter()
+	trusted := observability.ParseTrustedProxies(h.Config.TrustedProxies)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		a := auth.FromContext(r.Context())
-		key := "anonymous"
+		key := observability.RealIP(r, trusted)
 		if a != nil && a.User != nil {
 			key = a.User.ID
 		}

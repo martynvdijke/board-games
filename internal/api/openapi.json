@@ -664,6 +664,54 @@
         }
       }
     },
+    "/auth/config": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Public authentication configuration",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Demo account availability and credentials, if enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "demo": {
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "email": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "token": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
     "/trmnl": {
       "get": {
         "tags": [
