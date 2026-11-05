@@ -47,6 +47,17 @@ test('game detail shows metadata and saves shelf details', async ({ page }) => {
   await expect(page.getByLabel('Private notes')).toHaveValue('The gateway game that stuck.');
 });
 
+test('game detail saves and shows a private setup guide', async ({ page }) => {
+  await openGame(page, 'Wingspan');
+  const form = page.locator('form[action$="/setup"]');
+  await form.locator('textarea[name="setup_notes"]').fill('- Deal five bird cards\n- Place the goal board');
+  await form.getByRole('button', { name: /save setup guide/i }).click();
+  await expect(page.getByText('Setup guide saved')).toBeVisible();
+  await expect(page.locator('.setup-notes li', { hasText: 'Deal five bird cards' })).toBeVisible();
+  await page.reload();
+  await expect(page.locator('.setup-notes')).toContainText('Place the goal board');
+});
+
 test('log, edit, and delete a local play', async ({ page }) => {
   await page.goto('/plays/new');
   await page.getByLabel('Game').selectOption({ label: 'Wingspan' });

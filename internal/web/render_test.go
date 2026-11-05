@@ -27,3 +27,35 @@ func TestAssetFallbacks(t *testing.T) {
 		t.Fatal("asset css is empty")
 	}
 }
+
+func TestSetupTextEscapesHTML(t *testing.T) {
+	got := string(SetupText(`<script>alert("x")</script>`))
+	want := `<p>&lt;script&gt;alert(&#34;x&#34;)&lt;/script&gt;</p>`
+	if got != want {
+		t.Fatalf("SetupText = %q, want %q", got, want)
+	}
+}
+
+func TestSetupTextLinkifies(t *testing.T) {
+	got := string(SetupText("See https://example.com/path."))
+	want := `<p>See <a href="https://example.com/path" target="_blank" rel="noopener noreferrer nofollow">https://example.com/path</a>.</p>`
+	if got != want {
+		t.Fatalf("SetupText = %q, want %q", got, want)
+	}
+}
+
+func TestSetupTextBullets(t *testing.T) {
+	got := string(SetupText("- One\n* Two"))
+	want := `<ul><li>One</li><li>Two</li></ul>`
+	if got != want {
+		t.Fatalf("SetupText = %q, want %q", got, want)
+	}
+}
+
+func TestSetupTextParagraphs(t *testing.T) {
+	got := string(SetupText("First line\r\nsecond line\r\n\r\nThird"))
+	want := `<p>First line second line</p><p>Third</p>`
+	if got != want {
+		t.Fatalf("SetupText = %q, want %q", got, want)
+	}
+}

@@ -19,6 +19,8 @@ no client-side database.
 - **Plays that stay yours.** Log plays with players, scores, winners, duration,
   location, and notes. Plays imported from BGG are read-only; locally logged
   plays can be edited or deleted.
+- **Setup guides that stay private.** Keep per-game setup notes and up to 12
+  photos, visible only to you.
 - **BoardGameGeek in, not out.** BGG's public XML API2 is read-only. The Shelf
   imports your public collection, metadata, ratings, and play history, but it
   never writes back. See [BoardGameGeek limits](#boardgamegeek-limits).

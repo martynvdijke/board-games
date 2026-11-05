@@ -928,6 +928,9 @@
               "integer",
               "null"
             ]
+          },
+          "setup_notes": {
+            "type": "string"
           }
         }
       },
@@ -964,6 +967,9 @@
             "type": "boolean"
           },
           "notes": {
+            "type": "string"
+          },
+          "setup_notes": {
             "type": "string"
           },
           "acquisition_date": {

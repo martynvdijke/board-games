@@ -52,6 +52,82 @@
   </div>
 </article>
 
+<section id="setup" class="panel setup-panel" aria-labelledby="setup-title">
+  <div class="panel-head">
+    <h2 id="setup-title" class="section-title">Setup guide</h2>
+    <span class="panel-note">Only visible to you</span>
+  </div>
+
+  <div class="setup-body">
+    <div class="setup-notes-block">
+      {{if $g.SetupNotes}}
+      <div class="prose setup-notes">{{setupText $g.SetupNotes}}</div>
+      <details class="setup-edit">
+        <summary class="text-link text-link--small setup-edit-toggle">
+          <svg><use href="#i-edit"/></svg><span>Edit guide</span>
+        </summary>
+        <form method="post" action="/games/{{$g.ID}}/setup" class="stack setup-form">
+          <input type="hidden" name="csrf_token" value="{{.CSRF}}">
+          <label class="field"><span>Setup notes</span>
+            <textarea id="setup-notes" name="setup_notes" rows="6" aria-describedby="setup-notes-hint" placeholder="How to set up, house rules, what to teach first, useful links…">{{$g.SetupNotes}}</textarea>
+          </label>
+          <p class="field-hint" id="setup-notes-hint">Start lines with - for bullets. Links beginning with http:// or https:// become clickable.</p>
+          <div class="form-actions"><button class="button button--ghost" type="submit">Save setup guide</button></div>
+        </form>
+      </details>
+      {{else}}
+      <p class="setup-empty">No setup notes yet.</p>
+      <form method="post" action="/games/{{$g.ID}}/setup" class="stack setup-form">
+        <input type="hidden" name="csrf_token" value="{{.CSRF}}">
+        <label class="field"><span>Setup notes</span>
+          <textarea id="setup-notes" name="setup_notes" rows="6" aria-describedby="setup-notes-hint" placeholder="How to set up, house rules, what to teach first, useful links…"></textarea>
+        </label>
+        <p class="field-hint" id="setup-notes-hint">Start lines with - for bullets. Links beginning with http:// or https:// become clickable.</p>
+        <div class="form-actions"><button class="button button--ghost" type="submit">Save setup guide</button></div>
+      </form>
+      {{end}}
+    </div>
+
+    <div class="setup-photos">
+      <h3 class="setup-subhead">Photos</h3>
+      {{if $g.SetupImages}}
+      <ul class="setup-gallery">
+        {{range $g.SetupImages}}
+        <li class="setup-photo">
+          <a class="setup-photo-link" href="{{.URL}}" target="_blank" rel="noopener">
+            <img src="{{.URL}}" alt="{{if .Caption}}{{.Caption}}{{else}}Setup photo{{end}}" loading="lazy">
+          </a>
+          <div class="setup-photo-body">
+            {{if .Caption}}<p class="setup-caption">{{.Caption}}</p>{{end}}
+            <form method="post" action="/games/{{$g.ID}}/setup/images/{{.ID}}/delete">
+              <input type="hidden" name="csrf_token" value="{{$.CSRF}}">
+              <button class="button button--danger-ghost button--small" type="submit" aria-label="{{if .Caption}}Remove photo {{.Caption}}{{else}}Remove setup photo{{end}}">Remove</button>
+            </form>
+          </div>
+        </li>
+        {{end}}
+      </ul>
+      {{else}}
+      <p class="setup-empty">No setup photos yet.</p>
+      {{end}}
+
+      <form method="post" action="/games/{{$g.ID}}/setup/images" enctype="multipart/form-data" class="stack setup-upload">
+        <input type="hidden" name="csrf_token" value="{{.CSRF}}">
+        <div class="setup-upload-row">
+          <label class="field"><span>Photo</span>
+            <input id="setup-image" type="file" name="image" accept="image/jpeg,image/png,image/webp,image/gif" aria-describedby="setup-image-hint" required>
+          </label>
+          <label class="field"><span>Caption (optional)</span>
+            <input type="text" name="caption" maxlength="200" placeholder="Step 1, player board…">
+          </label>
+        </div>
+        <p class="field-hint" id="setup-image-hint">JPG, PNG, WebP or GIF, up to 5 MB. 12 photos per game.</p>
+        <div class="form-actions"><button class="button button--ghost button--small" type="submit">Add photo</button></div>
+      </form>
+    </div>
+  </div>
+</section>
+
 <div class="detail-columns">
   <section class="panel" aria-labelledby="shelf-details-title">
     <div class="panel-head">

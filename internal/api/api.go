@@ -211,7 +211,7 @@ func (h *Handler) getGame(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"data": map[string]any{
 		"game": payload, "description": game.Description, "categories": game.Categories, "mechanics": game.Mechanics,
 		"designers": game.Designers, "publishers": game.Publishers, "location": game.Location,
-		"condition": game.Condition, "price_paid_cents": game.PricePaid,
+		"condition": game.Condition, "price_paid_cents": game.PricePaid, "setup_notes": game.SetupNotes,
 	}})
 }
 
@@ -225,6 +225,7 @@ type collectionPatch struct {
 	UserRating      *float64 `json:"user_rating"`
 	ClearRating     bool     `json:"clear_rating"`
 	Notes           *string  `json:"notes"`
+	SetupNotes      *string  `json:"setup_notes"`
 	AcquisitionDate *string  `json:"acquisition_date"`
 	PricePaidCents  *int     `json:"price_paid_cents"`
 	ClearPrice      bool     `json:"clear_price"`
@@ -247,7 +248,7 @@ func (h *Handler) patchGame(w http.ResponseWriter, r *http.Request) {
 	}
 	patch := collection.CollectionPatch{Owned: body.Owned, Wishlist: body.Wishlist, WantToPlay: body.WantToPlay,
 		Preordered: body.Preordered, ForTrade: body.ForTrade, Favorite: body.Favorite, UserRating: body.UserRating,
-		ClearRating: body.ClearRating, Notes: body.Notes, AcquisitionDate: body.AcquisitionDate,
+		ClearRating: body.ClearRating, Notes: body.Notes, SetupNotes: body.SetupNotes, AcquisitionDate: body.AcquisitionDate,
 		PricePaid: body.PricePaidCents, ClearPrice: body.ClearPrice, Location: body.Location, Condition: body.Condition}
 	if err := h.Games.Apply(ctx, user.ID, id, patch); err != nil {
 		if errors.Is(err, collection.ErrNotFound) {

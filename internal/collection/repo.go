@@ -217,19 +217,21 @@ func (r *Repo) Get(ctx context.Context, userID string, gameID int64) (*GameDetai
 	}
 	d := &GameDetail{GameCard: card}
 	var price sql.NullInt64
-	var location, condition, description string
-	if err := r.DB.QueryRowContext(ctx, `SELECT g.description,ug.location,ug.condition,ug.price_paid FROM games g JOIN user_games ug ON ug.game_id=g.id WHERE g.id=? AND ug.user_id=?`, gameID, userID).
-		Scan(&description, &location, &condition, &price); err != nil {
+	var location, condition, description, setupNotes string
+	if err := r.DB.QueryRowContext(ctx, `SELECT g.description,ug.location,ug.condition,ug.price_paid,ug.setup_notes FROM games g JOIN user_games ug ON ug.game_id=g.id WHERE g.id=? AND ug.user_id=?`, gameID, userID).
+		Scan(&description, &location, &condition, &price, &setupNotes); err != nil {
 		return nil, err
 	}
 	d.Description = description
 	d.Location = location
 	d.Condition = condition
+	d.SetupNotes = setupNotes
 	d.Notes = card.Notes
 	if price.Valid {
 		p := int(price.Int64)
 		d.PricePaid = &p
 	}
+	d.SetupImages, _ = r.setupImages(ctx, userID, gameID)
 	d.Categories = r.namesFor(ctx, "game_categories", "category_id", "categories", gameID)
 	d.Mechanics = r.namesFor(ctx, "game_mechanics", "mechanic_id", "mechanics", gameID)
 	d.Designers = r.namesFor(ctx, "game_designers", "designer_id", "designers", gameID)
@@ -401,6 +403,14 @@ func (r *Repo) Apply(ctx context.Context, userID string, gameID int64, p Collect
 	if p.Notes != nil {
 		sets = append(sets, "notes=?")
 		args = append(args, strings.TrimSpace(*p.Notes))
+	}
+	if p.SetupNotes != nil {
+		v := strings.TrimSpace(*p.SetupNotes)
+		if len([]rune(v)) > 5000 {
+			return errors.New("setup guide must be 5000 characters or fewer")
+		}
+		sets = append(sets, "setup_notes=?")
+		args = append(args, v)
 	}
 	if p.AcquisitionDate != nil {
 		v := strings.TrimSpace(*p.AcquisitionDate)

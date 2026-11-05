@@ -79,7 +79,7 @@ func run() error {
 
 	webHandler := &web.Handler{
 		Config: cfg, Auth: authManager, Account: accountService, Games: games, Plays: playRepo, Sync: syncService,
-		TRMNL: trmnlService, Images: images, DB: database, MetricsHandler: providers.MetricsHandler(),
+		TRMNL: trmnlService, Images: images, SetupMediaDir: filepath.Join(filepath.Dir(cfg.DatabasePath), "setup"), DB: database, MetricsHandler: providers.MetricsHandler(),
 	}
 	apiHandler := &api.Handler{
 		Config: cfg, Auth: authManager, Account: accountService, Games: games, Plays: playRepo, Sync: syncService,

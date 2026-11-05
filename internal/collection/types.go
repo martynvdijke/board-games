@@ -137,10 +137,21 @@ type GameDetail struct {
 	Designers   []string
 	Publishers  []string
 	Notes       string
+	SetupNotes  string
+	SetupImages []SetupImage
 	Location    string
 	Condition   string
 	PricePaid   *int
 	RecentPlays []PlaySummary
+}
+
+type SetupImage struct {
+	ID          string
+	URL         string // "/media/setup/" + ID
+	Caption     string
+	CreatedAt   string
+	Filename    string // storage filename, not rendered
+	ContentType string // not rendered
 }
 
 type PlaySummary struct {
@@ -232,6 +243,7 @@ type CollectionPatch struct {
 	UserRating      *float64
 	ClearRating     bool
 	Notes           *string
+	SetupNotes      *string
 	AcquisitionDate *string
 	PricePaid       *int
 	ClearPrice      bool

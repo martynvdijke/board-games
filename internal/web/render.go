@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"html"
 	"html/template"
 	"log/slog"
 	"math"
@@ -29,12 +30,14 @@ var (
 
 var tagRE = regexp.MustCompile(`<[^>]*>`)
 var spaceRE = regexp.MustCompile(`\s+`)
+var setupLinkRE = regexp.MustCompile(`https?://[^\s<>"']+`)
 
 func funcMap() template.FuncMap {
 	return template.FuncMap{
 		"asset":     Asset,
 		"assetCSS":  AssetCSS,
 		"plain":     PlainText,
+		"setupText": SetupText,
 		"truncate":  truncateText,
 		"dateLong":  dateLong,
 		"dateShort": dateShort,
@@ -154,6 +157,61 @@ func PlainText(s string) string {
 	s = strings.ReplaceAll(s, "&lt;", "<")
 	s = strings.ReplaceAll(s, "&gt;", ">")
 	return strings.TrimSpace(spaceRE.ReplaceAllString(s, " "))
+}
+
+// SetupText renders a setup guide's plain text as safe HTML. All user text is
+// escaped before links are added, so no raw markup can survive.
+func SetupText(s string) template.HTML {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	lines := strings.Split(html.EscapeString(s), "\n")
+	isBullet := func(line string) bool {
+		return strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ")
+	}
+	var out strings.Builder
+	for i := 0; i < len(lines); {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			i++
+			continue
+		}
+		if isBullet(line) {
+			out.WriteString("<ul>")
+			for i < len(lines) {
+				item := strings.TrimSpace(lines[i])
+				if !isBullet(item) {
+					break
+				}
+				out.WriteString("<li>")
+				out.WriteString(setupLinkify(strings.TrimSpace(item[1:])))
+				out.WriteString("</li>")
+				i++
+			}
+			out.WriteString("</ul>")
+			continue
+		}
+		var parts []string
+		for i < len(lines) {
+			next := strings.TrimSpace(lines[i])
+			if next == "" || isBullet(next) {
+				break
+			}
+			parts = append(parts, next)
+			i++
+		}
+		out.WriteString("<p>")
+		out.WriteString(setupLinkify(strings.Join(parts, " ")))
+		out.WriteString("</p>")
+	}
+	return template.HTML(out.String())
+}
+
+func setupLinkify(s string) string {
+	return setupLinkRE.ReplaceAllStringFunc(s, func(match string) string {
+		url := strings.TrimRight(match, ".,;:!?)]")
+		suffix := match[len(url):]
+		return `<a href="` + url + `" target="_blank" rel="noopener noreferrer nofollow">` + url + `</a>` + suffix
+	})
 }
 
 func truncateText(s string, n int) string {

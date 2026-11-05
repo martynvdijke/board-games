@@ -29,6 +29,7 @@ type Handler struct {
 	Sync           *collection.SyncService
 	TRMNL          *trmnl.Service
 	Images         *trmnl.ImageService
+	SetupMediaDir  string
 	DB             *sql.DB
 	MetricsHandler http.Handler
 }
@@ -188,6 +189,10 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("GET /{$}", h.requireUser(h.overview))
 	mux.HandleFunc("GET /games/{id}", h.requireUser(h.gameDetail))
 	mux.HandleFunc("POST /games/{id}/collection", h.requireUser(h.updateCollection))
+	mux.HandleFunc("POST /games/{id}/setup", h.requireUser(h.updateSetup))
+	mux.HandleFunc("POST /games/{id}/setup/images", h.requireUser(h.uploadSetupImage))
+	mux.HandleFunc("POST /games/{id}/setup/images/{imageID}/delete", h.requireUser(h.deleteSetupImage))
+	mux.HandleFunc("GET /media/setup/{imageID}", h.requireUser(h.serveSetupImage))
 	mux.HandleFunc("GET /partials/games", h.requireUser(h.gamesPartial))
 	mux.HandleFunc("GET /plays", h.requireUser(h.playsPage))
 	mux.HandleFunc("GET /plays/new", h.requireUser(h.newPlayPage))
@@ -343,6 +348,11 @@ func parseFloat(v string) float64 {
 }
 
 func (h *Handler) flashRedirect(w http.ResponseWriter, r *http.Request, path, message, kind string) {
+	fragment := ""
+	if i := strings.Index(path, "#"); i >= 0 {
+		fragment = path[i:]
+		path = path[:i]
+	}
 	v := url.Values{}
 	v.Set("flash", message)
 	if kind != "" {
@@ -352,7 +362,7 @@ func (h *Handler) flashRedirect(w http.ResponseWriter, r *http.Request, path, me
 	if strings.Contains(path, "?") {
 		sep = "&"
 	}
-	http.Redirect(w, r, path+sep+v.Encode(), http.StatusSeeOther)
+	http.Redirect(w, r, path+sep+v.Encode()+fragment, http.StatusSeeOther)
 }
 
 func (h *Handler) settingsFor(r *http.Request, userID string) auth.UserSettings {

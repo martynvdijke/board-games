@@ -52,7 +52,7 @@ List endpoints take `limit` (1–100, default 24) and `offset` (≥0):
 | DELETE | `/me` | token or session+CSRF | Delete the account and all owned data; last admin gets `409` |
 | DELETE | `/players?name=&mode=` | write | Remove (`remove`) or replace (`anonymise`) a player name; scoped to own plays unless admin |
 | GET | `/games` | read | Filters: `q`, `players`, `max_playtime`, `min_weight`, `max_weight`, `category`, `mechanic`, `status`, `sort` |
-| GET | `/games/{id}` | read | Full game, shelf state, recent plays |
+| GET | `/games/{id}` | read | Full game, shelf state, setup notes, recent plays |
 | PATCH | `/games/{id}` | write | Partial shelf update; send `null` to clear rating/price |
 | GET | `/plays` | read | Filters: `game_id`, `year`, pagination |
 | POST | `/plays` | write | Local play with optional players |
@@ -106,6 +106,7 @@ curl -X PATCH https://shelf.example.com/api/v1/games/17 \
 ```
 
 Ratings use half steps from 1 to 10. `"user_rating": null` clears a rating.
+`setup_notes` stores the private per-game setup guide (up to 5000 characters).
 
 ## TRMNL
 
