@@ -398,3 +398,74 @@ func TestFakeAuthLoginOnboardsAdmin(t *testing.T) {
 		t.Fatalf("onboarded user has no usable settings: %v", err)
 	}
 }
+
+func TestEnsureAdminLeavesEmptyInstanceAlone(t *testing.T) {
+	cfg, _ := config.Load()
+	cfg.Env = "test"
+	database, err := db.OpenMemory(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	promoted, err := New(database, cfg).EnsureAdmin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if promoted != "" {
+		t.Fatalf("promoted %q on an empty instance", promoted)
+	}
+}
+
+func TestEnsureAdminLeavesExistingAdminAlone(t *testing.T) {
+	m, u := testManager(t)
+	if _, err := m.UpsertUser(context.Background(), "second@example.com", "Second", "", true); err != nil {
+		t.Fatal(err)
+	}
+	promoted, err := m.EnsureAdmin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if promoted != "" {
+		t.Fatalf("promoted %q while an admin existed", promoted)
+	}
+	var role string
+	if err := m.db.QueryRow(`SELECT role FROM users WHERE id=?`, u.ID).Scan(&role); err != nil {
+		t.Fatal(err)
+	}
+	if role != "admin" {
+		t.Fatalf("existing admin role = %q", role)
+	}
+}
+
+func TestEnsureAdminPromotesOldestMember(t *testing.T) {
+	cfg, _ := config.Load()
+	cfg.Env = "test"
+	database, err := db.OpenMemory(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	for _, row := range []struct{ id, email, created string }{
+		{"newer", "newer@example.com", "2026-02-01T00:00:00Z"},
+		{"older", "older@example.com", "2026-01-01T00:00:00Z"},
+	} {
+		if _, err := database.Exec(`INSERT INTO users(id,email,name,role,created_at,updated_at) VALUES(?,?,'', 'member',?,?)`,
+			row.id, row.email, row.created, row.created); err != nil {
+			t.Fatal(err)
+		}
+	}
+	promoted, err := New(database, cfg).EnsureAdmin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if promoted != "older" {
+		t.Fatalf("promoted %q, want the oldest account", promoted)
+	}
+	var admins int
+	if err := database.QueryRow(`SELECT COUNT(*) FROM users WHERE role='admin'`).Scan(&admins); err != nil {
+		t.Fatal(err)
+	}
+	if admins != 1 {
+		t.Fatalf("admins = %d, want 1", admins)
+	}
+}

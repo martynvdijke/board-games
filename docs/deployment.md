@@ -107,8 +107,9 @@ proxy pass them through is sufficient.
 ## 4. First sign-in
 
 Visit `https://shelf.example.com/login`. The first successfully authenticated
-user becomes an admin. If you configured `ALLOWED_EMAILS` or
-`ALLOWED_DOMAINS`, only matching accounts can enter.
+user becomes an admin. If the database already has accounts but none carries
+the `admin` role, the oldest account is promoted at startup. If you configured
+`ALLOWED_EMAILS` or `ALLOWED_DOMAINS`, only matching accounts can enter.
 
 Then open **Settings → BoardGameGeek API**. An admin must first add the
 instance's BGG API token there (unless it was provided through `BGG_API_TOKEN`).

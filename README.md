@@ -76,9 +76,11 @@ proxy trust, and OIDC callback configuration.
 
 ## Sign-in and users
 
-The first user to sign in becomes an admin. Additional users are created on
-first successful OIDC login. There is deliberately no invitation or user
-management UI in v1. Restrict access with either:
+The first user to sign in becomes an admin. If an existing database has users
+but no admin (for example after an out-of-band row change), the oldest account
+is promoted to admin at startup so the instance stays administrable. Additional
+users are created on first successful OIDC login. There is deliberately no
+invitation or user management UI in v1. Restrict access with either:
 
 ```env
 ALLOWED_EMAILS=you@example.com,partner@example.com

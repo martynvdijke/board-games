@@ -24,11 +24,16 @@ The system SHALL authenticate users with the OpenID Connect Authorization Code f
 
 ### Requirement: Access SHALL be limited to permitted identities
 
-The system SHALL assign the first successfully authenticated user the `admin` role and later users the `member` role. When an allowlist is configured, only identities whose verified email or email domain matches SHALL be allowed to create a local user or session.
+The system SHALL assign the first successfully authenticated user the `admin` role and later users the `member` role. When an allowlist is configured, only identities whose verified email or email domain matches SHALL be allowed to create a local user or session. On startup, if the database has users but no `admin`, the system SHALL promote the oldest account to `admin` so the instance remains administrable.
 
 #### Scenario: First user becomes admin
 - **WHEN** the first user completes OIDC login on a fresh database
 - **THEN** that user SHALL have the `admin` role
+
+#### Scenario: Instance has users but no admin
+- **WHEN** the server starts against a database with accounts but no `admin` role
+- **THEN** the oldest account SHALL be promoted to `admin`
+- **AND** the promotion SHALL be logged without an email address
 
 #### Scenario: Disallowed identity
 - **WHEN** a user authenticates successfully at the provider but their email is not permitted by the configured allowlist

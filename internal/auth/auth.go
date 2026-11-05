@@ -417,6 +417,41 @@ func (m *Manager) Allowed(email string, verified bool) bool {
 	return false
 }
 
+// EnsureAdmin promotes the oldest account when an instance has users but no
+// administrator, and returns the promoted user ID. The first sign-in normally
+// creates an admin; this repairs databases that predate that rule, were
+// restored without their admin row, or whose admin account was removed
+// out-of-band. It is a no-op when an admin already exists or the instance has
+// no users yet.
+func (m *Manager) EnsureAdmin(ctx context.Context) (string, error) {
+	var promoted string
+	err := db.WithTx(ctx, m.db, func(tx *sql.Tx) error {
+		var admins int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE role='admin'`).Scan(&admins); err != nil {
+			return err
+		}
+		if admins > 0 {
+			return nil
+		}
+		var users int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&users); err != nil {
+			return err
+		}
+		if users == 0 {
+			return nil
+		}
+		if err := tx.QueryRowContext(ctx, `SELECT id FROM users ORDER BY created_at ASC, id ASC LIMIT 1`).Scan(&promoted); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `UPDATE users SET role='admin', updated_at=? WHERE id=?`, db.Now(), promoted)
+		return err
+	})
+	if err != nil {
+		return "", err
+	}
+	return promoted, nil
+}
+
 // UpsertUser creates or refreshes a local user. The first user becomes admin.
 func (m *Manager) UpsertUser(ctx context.Context, email, name, avatar string, emailVerified bool) (*User, error) {
 	email = strings.ToLower(strings.TrimSpace(email))

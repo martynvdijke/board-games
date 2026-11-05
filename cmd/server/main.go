@@ -63,6 +63,11 @@ func run() error {
 	defer database.Close()
 
 	authManager := auth.New(database, cfg)
+	if promoted, err := authManager.EnsureAdmin(ctx); err != nil {
+		return fmt.Errorf("ensure administrator: %w", err)
+	} else if promoted != "" {
+		slog.Info("promoted the oldest account to administrator", "user_id", promoted)
+	}
 	games := collection.NewRepo(database)
 	playRepo := plays.NewRepo(database)
 	bggClient := bgg.NewClient(cfg.BGGBaseURL, cfg.BGGUserAgent, cfg.BGGRequestsPerSecond)
