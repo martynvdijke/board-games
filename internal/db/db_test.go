@@ -3,6 +3,9 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -64,6 +67,28 @@ func TestPartialUniqueBGGPlay(t *testing.T) {
 		t.Fatal("expected duplicate bgg play to fail")
 	}
 	mustExec(t, database, `INSERT INTO plays(id,user_id,game_id,played_at,origin,created_at,updated_at) VALUES('p3','u',1,'2026-01-01','local',?,?)`, Now(), Now())
+}
+
+func TestOpenRestrictsDatabasePermissions(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "nested", "boardgames.db")
+	database, err := Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	for _, name := range []string{path, path + "-wal", path + "-shm"} {
+		info, err := os.Stat(name)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if perm := info.Mode().Perm(); perm != 0o600 {
+			t.Fatalf("%s mode = %o, want 600", filepath.Base(name), perm)
+		}
+	}
 }
 
 func mustExec(t *testing.T, database *sql.DB, query string, args ...any) {

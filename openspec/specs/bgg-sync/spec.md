@@ -24,7 +24,7 @@ The settings page SHALL allow an authenticated user to save and validate a Board
 
 ### Requirement: The instance SHALL authenticate BGG requests with an application token
 
-The system SHALL send an application-scoped BoardGameGeek API token as `Authorization: Bearer <token>` on every XML API2 request. An admin SHALL be able to save or remove the token in settings. `BGG_API_TOKEN` or `BGG_API_TOKEN_FILE` SHALL provide an environment fallback, and a token saved in the instance SHALL take precedence. The token SHALL NOT be rendered in a page, exported, or returned by the API.
+The system SHALL send an application-scoped BoardGameGeek API token as `Authorization: Bearer <token>` on every XML API2 request. An admin SHALL be able to save or remove the token in settings. `BGG_API_TOKEN` or `BGG_API_TOKEN_FILE` SHALL provide an environment fallback, and a token saved in the instance SHALL take precedence. A token saved in the instance SHALL be encrypted at rest with a key derived from `SESSION_SECRET`. The token SHALL NOT be rendered in a page, exported, or returned by the API.
 
 #### Scenario: Admin saves a token
 - **WHEN** an admin saves a token that BGG accepts

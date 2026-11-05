@@ -179,6 +179,13 @@ func TestAPITokenEnvFallbackAndInstanceOverride(t *testing.T) {
 	if token != "instance-token" || source != "instance" {
 		t.Fatalf("instance override = %q/%q", token, source)
 	}
+	var stored string
+	if err := service.DB.QueryRow(`SELECT value FROM instance_settings WHERE key=?`, bggTokenKey).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if stored == "instance-token" || !strings.HasPrefix(stored, tokenCipherPrefix) {
+		t.Fatalf("token was not encrypted at rest: %q", stored)
+	}
 
 	if err := service.SetAPIToken(ctx, ""); err != nil {
 		t.Fatal(err)
@@ -186,6 +193,31 @@ func TestAPITokenEnvFallbackAndInstanceOverride(t *testing.T) {
 	token, source = service.APIToken(ctx)
 	if token != "env-token" || source != "environment" {
 		t.Fatalf("after removal = %q/%q", token, source)
+	}
+}
+
+func TestAPITokenReencryptsLegacyPlaintext(t *testing.T) {
+	service, _, _, cleanup := setupSync(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	if _, err := service.DB.Exec(`INSERT INTO instance_settings(key,value,updated_at) VALUES(?,?,?)`, bggTokenKey, "legacy-token", db.Now()); err != nil {
+		t.Fatal(err)
+	}
+	token, source := service.APIToken(ctx)
+	if token != "legacy-token" || source != "instance" {
+		t.Fatalf("legacy token = %q/%q", token, source)
+	}
+	var stored string
+	if err := service.DB.QueryRow(`SELECT value FROM instance_settings WHERE key=?`, bggTokenKey).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(stored, tokenCipherPrefix) {
+		t.Fatalf("legacy token was not upgraded: %q", stored)
+	}
+	token, _ = service.APIToken(ctx)
+	if token != "legacy-token" {
+		t.Fatalf("token after upgrade = %q", token)
 	}
 }
 

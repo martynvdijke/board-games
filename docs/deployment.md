@@ -30,6 +30,12 @@ personal key. Register the application early: manual approval can take a week or
 more. One token serves every BGG username on the instance. You can leave it
 empty here and save it later in the admin-only Settings panel.
 
+A token saved in Settings is encrypted at rest using a key derived from
+`SESSION_SECRET`, and the SQLite database (including its `-wal` and `-shm`
+files) is created with `0600` permissions. Changing `SESSION_SECRET` makes the
+stored token unreadable, so re-save it in Settings after a secret rotation;
+rotating the secret also invalidates existing sessions.
+
 `BASE_URL` must be the public HTTPS origin. The OIDC redirect URI is
 `${BASE_URL}/auth/callback` unless you set `OIDC_REDIRECT_URL` explicitly.
 Register that exact URI with your provider.

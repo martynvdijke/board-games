@@ -432,7 +432,15 @@ func (s *SyncService) APIToken(ctx context.Context) (token, source string) {
 	err := s.DB.QueryRowContext(ctx, `SELECT value FROM instance_settings WHERE key=?`, bggTokenKey).Scan(&stored)
 	switch {
 	case err == nil && strings.TrimSpace(stored) != "":
-		return strings.TrimSpace(stored), "instance"
+		plain, decryptErr := openToken(s.sessionSecret(), stored)
+		switch {
+		case decryptErr != nil:
+			slog.Warn("stored BGG API token could not be decrypted; save it again in settings", "error", decryptErr)
+		case strings.TrimSpace(plain) != "":
+			plain = strings.TrimSpace(plain)
+			s.sealLegacyToken(ctx, stored, plain)
+			return plain, "instance"
+		}
 	case err != nil && !errors.Is(err, sql.ErrNoRows):
 		slog.Warn("read BGG API token", "error", err)
 	}
@@ -454,12 +462,39 @@ func (s *SyncService) SetAPIToken(ctx context.Context, token string) error {
 		return nil
 	}
 	now := db.Now()
+	sealed, err := sealToken(s.sessionSecret(), token)
+	if err != nil {
+		return describeSealError(err)
+	}
 	if _, err := s.DB.ExecContext(ctx, `INSERT INTO instance_settings(key,value,updated_at) VALUES(?,?,?)
-		ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`, bggTokenKey, token, now); err != nil {
+		ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`, bggTokenKey, sealed, now); err != nil {
 		return err
 	}
 	s.BGG.SetToken(token)
 	return nil
+}
+
+// sessionSecret returns the key material used to encrypt instance secrets.
+func (s *SyncService) sessionSecret() string {
+	if s.Config == nil {
+		return ""
+	}
+	return s.Config.SessionSecret
+}
+
+// sealLegacyToken upgrades a plaintext row to ciphertext in place, best effort,
+// so instances that saved a token before encryption existed self-heal.
+func (s *SyncService) sealLegacyToken(ctx context.Context, stored, plain string) {
+	if strings.HasPrefix(stored, tokenCipherPrefix) {
+		return
+	}
+	sealed, err := sealToken(s.sessionSecret(), plain)
+	if err != nil {
+		return
+	}
+	if _, err := s.DB.ExecContext(ctx, `UPDATE instance_settings SET value=?, updated_at=? WHERE key=?`, sealed, db.Now(), bggTokenKey); err != nil {
+		slog.Warn("re-encrypt BGG API token", "error", err)
+	}
 }
 
 // ValidateAPIToken asks BGG whether the supplied token is accepted.

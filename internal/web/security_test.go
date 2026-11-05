@@ -63,3 +63,14 @@ func TestLoginOmitsUmamiScriptWhenUnconfigured(t *testing.T) {
 		t.Fatal("Umami script should not render without configuration")
 	}
 }
+
+func TestRenderedPagesAreNotCached(t *testing.T) {
+	h := &Handler{Config: &config.Config{AppName: "The Shelf"}}
+	rec := httptest.NewRecorder()
+	h.render(rec, httptest.NewRequest(http.MethodGet, "/settings", nil), "login.html", Page{
+		Title: "Settings", AppName: "The Shelf", Theme: "system", Data: map[string]string{},
+	})
+	if got := rec.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("Cache-Control = %q, want no-store", got)
+	}
+}

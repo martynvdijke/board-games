@@ -165,7 +165,9 @@ application-scoped, not per user: one token covers every BGG request this
 instance makes for every shelf. Set `BGG_API_TOKEN` (or
 `BGG_API_TOKEN_FILE`) at startup, or save it at runtime under
 the **BoardGameGeek API** panel in Settings. That panel is admin-only and its
-saved token takes precedence over the environment variable.
+saved token takes precedence over the environment variable. A token saved
+there is encrypted at rest with a key derived from `SESSION_SECRET`, never
+rendered back into a page, and never returned by the API.
 
 The app identifies itself with `BGG_USER_AGENT`, which must include a contact
 address in parentheses, and rate-limits requests to roughly one per second.

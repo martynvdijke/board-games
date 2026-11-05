@@ -117,6 +117,7 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, page string, p 
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write(buf.Bytes())
 }
 
@@ -136,6 +137,7 @@ func (h *Handler) renderPartial(w http.ResponseWriter, name string, data any) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write(buf.Bytes())
 }
 

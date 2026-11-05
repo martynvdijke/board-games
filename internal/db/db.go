@@ -32,7 +32,7 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 	if path == "" {
 		return nil, errors.New("database path is empty")
 	}
-	if path != ":memory:" && !strings.Contains(path, "mode=memory") {
+	if isFile(path) {
 		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 			return nil, fmt.Errorf("create database directory: %w", err)
 		}
@@ -59,7 +59,32 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 		_ = db.Close()
 		return nil, err
 	}
+	if isFile(path) {
+		if err := hardenPermissions(path); err != nil {
+			_ = db.Close()
+			return nil, err
+		}
+	}
 	return db, nil
+}
+
+// isFile reports whether path names an on-disk database rather than a memory
+// DSN or a URI containing connection parameters.
+func isFile(path string) bool {
+	return path != ":memory:" && !strings.Contains(path, "?")
+}
+
+// hardenPermissions restricts the database and its WAL sidecars to the server
+// user. The file holds session hashes and the encrypted BGG token, so it must
+// not be world-readable. SQLite copies the database mode onto new sidecars,
+// which keeps future -wal/-shm files private too.
+func hardenPermissions(path string) error {
+	for _, name := range []string{path, path + "-wal", path + "-shm"} {
+		if err := os.Chmod(name, 0o600); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("restrict database file permissions: %w", err)
+		}
+	}
+	return nil
 }
 
 // OpenMemory opens a migrated, shared-cache in-memory database for tests.
