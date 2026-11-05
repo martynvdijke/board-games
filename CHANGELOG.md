@@ -1,3 +1,10 @@
+## [1.6.4](https://github.com/martynvdijke/board-games/compare/v1.6.3...v1.6.4) (2026-11-05)
+
+
+### Bug Fixes
+
+* **auth:** guarantee an instance always has an admin ([1eed535](https://github.com/martynvdijke/board-games/commit/1eed535ba22e350741488c2d49ee18bee21fbc2c))
+
 ## [1.6.3](https://github.com/martynvdijke/board-games/compare/v1.6.2...v1.6.3) (2026-11-05)
 
 
