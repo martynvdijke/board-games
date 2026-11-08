@@ -1,3 +1,16 @@
+# [1.10.0](https://github.com/martynvdijke/board-games/compare/v1.9.0...v1.10.0) (2026-11-08)
+
+
+### Bug Fixes
+
+* **media:** fall back to the full cover and stop caching placeholders ([852dbec](https://github.com/martynvdijke/board-games/commit/852dbece9123a40d399df7dbd60ea23f1ebff310))
+
+
+### Features
+
+* **notify:** add optional Telegram notifications ([3e8811e](https://github.com/martynvdijke/board-games/commit/3e8811e418ccbafb9ea528858558b00a8c353c66))
+* **plays:** add a tick-list of past players to the play form ([1287bf0](https://github.com/martynvdijke/board-games/commit/1287bf04e14272e2980ddbdfd5489ca87104a66a))
+
 # [1.9.0](https://github.com/martynvdijke/board-games/compare/v1.8.0...v1.9.0) (2026-11-08)
 
 
