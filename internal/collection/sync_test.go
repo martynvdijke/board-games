@@ -297,3 +297,36 @@ func TestMalformedCollectionXML(t *testing.T) {
 		t.Fatal("expected malformed XML to fail")
 	}
 }
+
+type syncFakeNotifier struct{ ch chan [2]string }
+
+func (f *syncFakeNotifier) Notify(_ context.Context, title, body string) error {
+	f.ch <- [2]string{title, body}
+	return nil
+}
+
+func TestSyncNotifiesOnFinish(t *testing.T) {
+	service, _, userID, cleanup := setupSync(t)
+	defer cleanup()
+	fake := &syncFakeNotifier{ch: make(chan [2]string, 1)}
+	service.SetNotifier(fake)
+
+	if _, err := service.Start(userID, "manual"); err != nil {
+		t.Fatal(err)
+	}
+	run := waitForSync(t, service, userID)
+	if run.Status != "success" {
+		t.Fatalf("sync status = %q (%s)", run.Status, run.Error)
+	}
+	select {
+	case got := <-fake.ch:
+		if got[0] != "BGG sync finished" {
+			t.Errorf("title = %q", got[0])
+		}
+		if !strings.Contains(got[1], "Collection:") {
+			t.Errorf("body = %q, want counts", got[1])
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for sync notification")
+	}
+}

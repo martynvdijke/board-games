@@ -77,3 +77,47 @@ func TestProductionRequiresOIDC(t *testing.T) {
 		t.Fatal("expected OIDC to be required")
 	}
 }
+
+func TestTelegramConfigAndRedaction(t *testing.T) {
+	t.Setenv("TELEGRAM_BOT_TOKEN", "  123456:secret-token  ")
+	t.Setenv("TELEGRAM_CHAT_ID", "  -100987654  ")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.TelegramBotToken != "123456:secret-token" {
+		t.Fatalf("TelegramBotToken = %q", cfg.TelegramBotToken)
+	}
+	if cfg.TelegramChatID != "-100987654" {
+		t.Fatalf("TelegramChatID = %q", cfg.TelegramChatID)
+	}
+	logged := map[string]string{}
+	for _, attr := range cfg.LogValue().Group() {
+		logged[attr.Key] = attr.Value.String()
+	}
+	if logged["telegram_bot_token"] != "[redacted]" {
+		t.Fatalf("telegram_bot_token log value = %q, want redacted", logged["telegram_bot_token"])
+	}
+	if logged["telegram_chat_id"] != "[redacted]" {
+		t.Fatalf("telegram_chat_id log value = %q, want redacted", logged["telegram_chat_id"])
+	}
+}
+
+func TestTelegramConfigOptional(t *testing.T) {
+	t.Setenv("TELEGRAM_BOT_TOKEN", "")
+	t.Setenv("TELEGRAM_CHAT_ID", "")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load without Telegram settings: %v", err)
+	}
+	if cfg.TelegramBotToken != "" || cfg.TelegramChatID != "" {
+		t.Fatalf("expected empty Telegram config, got %q / %q", cfg.TelegramBotToken, cfg.TelegramChatID)
+	}
+	logged := map[string]string{}
+	for _, attr := range cfg.LogValue().Group() {
+		logged[attr.Key] = attr.Value.String()
+	}
+	if logged["telegram_bot_token"] != "" || logged["telegram_chat_id"] != "" {
+		t.Fatalf("empty values should log empty, got %q / %q", logged["telegram_bot_token"], logged["telegram_chat_id"])
+	}
+}

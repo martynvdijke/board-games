@@ -14,6 +14,7 @@ import (
 	"boardgames/internal/bgg"
 	"boardgames/internal/config"
 	"boardgames/internal/db"
+	"boardgames/internal/notify"
 	"boardgames/internal/plays"
 
 	"go.opentelemetry.io/otel"
@@ -23,17 +24,22 @@ import (
 )
 
 type SyncService struct {
-	DB      *sql.DB
-	BGG     *bgg.Client
-	Games   *Repo
-	Plays   *plays.Repo
-	Config  *config.Config
-	startMu sync.Mutex
+	DB       *sql.DB
+	BGG      *bgg.Client
+	Games    *Repo
+	Plays    *plays.Repo
+	Config   *config.Config
+	notifier notify.Notifier
+	startMu  sync.Mutex
 }
 
 func NewSyncService(database *sql.DB, client *bgg.Client, games *Repo, playRepo *plays.Repo, cfg *config.Config) *SyncService {
 	return &SyncService{DB: database, BGG: client, Games: games, Plays: playRepo, Config: cfg}
 }
+
+// SetNotifier installs an optional notifier. A nil notifier disables
+// notifications. Call it once during startup.
+func (s *SyncService) SetNotifier(n notify.Notifier) { s.notifier = n }
 
 type SyncRun struct {
 	ID              string
@@ -334,6 +340,34 @@ func (s *SyncService) finish(runID, status, message string) {
 	if err != nil {
 		slog.Warn("finish sync run", "error", err)
 	}
+	s.notifySync(runID, status, message)
+}
+
+// notifySync fires a best-effort notification on a background goroutine. It
+// never blocks or fails the sync that just finished.
+func (s *SyncService) notifySync(runID, status, message string) {
+	n := s.notifier
+	if n == nil {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		title := "BGG sync finished"
+		body := message
+		if status == "failed" {
+			title = "BGG sync failed"
+		} else if body == "" {
+			var collection, things, playCount int
+			if err := s.DB.QueryRowContext(ctx, `SELECT collection_count,things_count,plays_count FROM sync_runs WHERE id=?`, runID).
+				Scan(&collection, &things, &playCount); err == nil {
+				body = fmt.Sprintf("Collection: %d · Details: %d · Plays: %d", collection, things, playCount)
+			}
+		}
+		if err := n.Notify(ctx, title, body); err != nil {
+			slog.Warn("sync notification failed", "error", err)
+		}
+	}()
 }
 
 func (s *SyncService) Latest(ctx context.Context, userID string) (*SyncRun, error) {

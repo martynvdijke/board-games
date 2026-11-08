@@ -22,6 +22,7 @@ import (
 	"boardgames/internal/config"
 	"boardgames/internal/db"
 	"boardgames/internal/demo"
+	"boardgames/internal/notify"
 	"boardgames/internal/observability"
 	"boardgames/internal/plays"
 	"boardgames/internal/trmnl"
@@ -71,8 +72,14 @@ func run() error {
 	}
 	games := collection.NewRepo(database)
 	playRepo := plays.NewRepo(database)
+	var notifier notify.Notifier
+	if telegram := notify.NewTelegram(cfg.TelegramBotToken, cfg.TelegramChatID); telegram != nil {
+		notifier = telegram
+	}
+	playRepo.SetNotifier(notifier)
 	bggClient := bgg.NewClient(cfg.BGGBaseURL, cfg.BGGUserAgent, cfg.BGGRequestsPerSecond)
 	syncService := collection.NewSyncService(database, bggClient, games, playRepo, cfg)
+	syncService.SetNotifier(notifier)
 	trmnlService := trmnl.NewService(database, games, playRepo, cfg)
 	setupMediaDir := filepath.Join(filepath.Dir(cfg.DatabasePath), "setup")
 	accountService := account.NewWithMedia(database, setupMediaDir)

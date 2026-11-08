@@ -31,6 +31,8 @@ type Config struct {
 	AllowedDomains       []string
 	BGGBaseURL           string
 	BGGAPIToken          string
+	TelegramBotToken     string
+	TelegramChatID       string
 	BGGUserAgent         string
 	BGGRequestsPerSecond float64
 	BGGRefreshDays       int
@@ -76,6 +78,8 @@ func Load() (*Config, error) {
 		AllowedDomains:       list("ALLOWED_DOMAINS"),
 		BGGBaseURL:           strings.TrimRight(env("BGG_BASE_URL", "https://boardgamegeek.com/xmlapi2"), "/"),
 		BGGAPIToken:          strings.TrimSpace(os.Getenv("BGG_API_TOKEN")),
+		TelegramBotToken:     strings.TrimSpace(os.Getenv("TELEGRAM_BOT_TOKEN")),
+		TelegramChatID:       strings.TrimSpace(os.Getenv("TELEGRAM_CHAT_ID")),
 		BGGUserAgent:         env("BGG_USER_AGENT", "TheShelf/1.0 (self-hosted board game shelf)"),
 		BGGRequestsPerSecond: float("BGG_REQUESTS_PER_SECOND", 1),
 		BGGRefreshDays:       integer("BGG_REFRESH_DAYS", 30),
@@ -230,6 +234,8 @@ func (c *Config) LogValue() slog.Value {
 		slog.String("oidc_redirect_uri", c.RedirectURI()),
 		slog.String("bgg_base_url", c.BGGBaseURL),
 		slog.String("bgg_api_token", redact(c.BGGAPIToken)),
+		slog.String("telegram_bot_token", redact(c.TelegramBotToken)),
+		slog.String("telegram_chat_id", redact(c.TelegramChatID)),
 		slog.Int("bgg_refresh_days", c.BGGRefreshDays),
 		slog.Duration("sync_interval", c.SyncInterval),
 		slog.Bool("metrics_enabled", c.MetricsEnabled),

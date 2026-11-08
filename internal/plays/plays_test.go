@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"testing"
+	"time"
 
 	"boardgames/internal/db"
 )
@@ -124,4 +125,78 @@ func TestStatsAndIdempotentImport(t *testing.T) {
 	if stats.TotalPlays != 3 || stats.TotalSessions != 2 {
 		t.Fatalf("unexpected stats: %+v", stats)
 	}
+}
+
+type fakeNotifier struct {
+	ch    chan notification
+	calls int
+}
+
+type notification struct{ title, body string }
+
+func (f *fakeNotifier) Notify(_ context.Context, title, body string) error {
+	f.calls++
+	f.ch <- notification{title: title, body: body}
+	return nil
+}
+
+func TestCreateNotifies(t *testing.T) {
+	repo, _, userID, gameID := setupPlays(t)
+	ctx := context.Background()
+	fake := &fakeNotifier{ch: make(chan notification, 1)}
+	repo.SetNotifier(fake)
+
+	if _, err := repo.Create(ctx, userID, Input{GameID: gameID, PlayedAt: "2026-01-02", Quantity: 1,
+		Players: []Player{{Name: "Alex", IsWinner: true}, {Name: "Sam"}}}, "UTC"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case got := <-fake.ch:
+		if got.title != "New play logged" {
+			t.Errorf("title = %q", got.title)
+		}
+		if got.body == "" || !contains(got.body, "Catan") || !contains(got.body, "2 players") {
+			t.Errorf("body = %q, want game and player count", got.body)
+		}
+		if !contains(got.body, "Winner: Alex") {
+			t.Errorf("body = %q, want the single winner", got.body)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for notification")
+	}
+}
+
+func TestValidationFailureDoesNotNotify(t *testing.T) {
+	repo, _, userID, _ := setupPlays(t)
+	ctx := context.Background()
+	fake := &fakeNotifier{ch: make(chan notification, 1)}
+	repo.SetNotifier(fake)
+
+	if _, err := repo.Create(ctx, userID, Input{GameID: 999, PlayedAt: "2026-01-02", Quantity: 1}, "UTC"); err == nil {
+		t.Fatal("expected validation failure")
+	}
+	select {
+	case got := <-fake.ch:
+		t.Fatalf("unexpected notification: %+v", got)
+	case <-time.After(100 * time.Millisecond):
+	}
+	if fake.calls != 0 {
+		t.Fatalf("notifier called %d times, want 0", fake.calls)
+	}
+}
+
+func TestCreateWithoutNotifier(t *testing.T) {
+	repo, _, userID, gameID := setupPlays(t)
+	if _, err := repo.Create(context.Background(), userID, Input{GameID: gameID, PlayedAt: "2026-01-02", Quantity: 1}, "UTC"); err != nil {
+		t.Fatalf("Create with nil notifier: %v", err)
+	}
+}
+
+func contains(s, sub string) bool {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
 }

@@ -7,10 +7,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	"boardgames/internal/db"
+	"boardgames/internal/notify"
 	"boardgames/internal/observability"
 )
 
@@ -55,9 +57,16 @@ type Input struct {
 	Players  []Player
 }
 
-type Repo struct{ DB *sql.DB }
+type Repo struct {
+	DB       *sql.DB
+	notifier notify.Notifier
+}
 
 func NewRepo(database *sql.DB) *Repo { return &Repo{DB: database} }
+
+// SetNotifier installs an optional notifier. A nil notifier disables
+// notifications. Call it once during startup, before the repo serves requests.
+func (r *Repo) SetNotifier(n notify.Notifier) { r.notifier = n }
 
 // Validate enforces the same rules for web and API writes.
 func (r *Repo) Validate(ctx context.Context, userID string, in Input, timezone string) error {
@@ -135,7 +144,59 @@ func (r *Repo) Create(ctx context.Context, userID string, in Input, timezone str
 		return nil, err
 	}
 	observability.RecordPlayCreated(ctx, "local")
-	return r.Get(ctx, userID, id)
+	p, err := r.Get(ctx, userID, id)
+	if err != nil {
+		return nil, err
+	}
+	r.notifyPlay(p)
+	return p, nil
+}
+
+// notifyPlay fires a best-effort notification on a background goroutine. It
+// never blocks or fails the write that created the play.
+func (r *Repo) notifyPlay(p *Play) {
+	n := r.notifier
+	if n == nil || p == nil {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		title, body := playNotification(ctx, r.DB, p)
+		if err := n.Notify(ctx, title, body); err != nil {
+			slog.Warn("play notification failed", "error", err)
+		}
+	}()
+}
+
+func playNotification(ctx context.Context, database *sql.DB, p *Play) (string, string) {
+	gameName := p.GameName
+	// Prefer the authoritative shared game name; fall back to the joined value.
+	var name string
+	if err := database.QueryRowContext(ctx, `SELECT name FROM games WHERE id=?`, p.GameID).Scan(&name); err == nil {
+		if trimmed := strings.TrimSpace(name); trimmed != "" {
+			gameName = trimmed
+		}
+	}
+	if gameName == "" {
+		gameName = "Unknown game"
+	}
+	body := fmt.Sprintf("%s — %s", gameName, p.PlayedAt)
+	if n := len(p.Players); n > 0 {
+		body += fmt.Sprintf(" · %d players", n)
+	}
+	var winner string
+	winners := 0
+	for _, player := range p.Players {
+		if player.IsWinner {
+			winners++
+			winner = player.Name
+		}
+	}
+	if winners == 1 && strings.TrimSpace(winner) != "" {
+		body += " · Winner: " + strings.TrimSpace(winner)
+	}
+	return "New play logged", body
 }
 
 func nullableInt(v int) any {
