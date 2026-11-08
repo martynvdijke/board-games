@@ -194,6 +194,16 @@ function initPlayerRows(): void {
   const add = document.querySelector<HTMLButtonElement>('[data-add-player]')
   if (!container || !add) return
 
+  const MAX_PLAYERS = 20
+  const knownBoxes = Array.from(document.querySelectorAll<HTMLInputElement>('[data-known-player]'))
+  const normalise = (value: string | null | undefined): string => (value ?? '').trim().toLowerCase()
+
+  const rows = (): HTMLElement[] => Array.from(container.querySelectorAll<HTMLElement>('[data-player-row]'))
+  const nameInput = (row: HTMLElement): HTMLInputElement | null =>
+    row.querySelector<HTMLInputElement>('input[name="player_name"]')
+  const rowNamed = (name: string): HTMLElement | undefined =>
+    rows().find((row) => normalise(nameInput(row)?.value) === normalise(name))
+
   const renumber = () => {
     container.querySelectorAll<HTMLElement>('[data-player-row]').forEach((row, index) => {
       const label = row.querySelector<HTMLElement>('.player-index')
@@ -204,38 +214,88 @@ function initPlayerRows(): void {
     })
   }
 
-  add.addEventListener('click', () => {
-    const count = container.querySelectorAll('[data-player-row]').length
-    if (count >= 20) return
+  // One box per familiar name: ticked while a player row carries that name.
+  const syncKnown = () => {
+    knownBoxes.forEach((box) => {
+      box.checked = Boolean(rowNamed(box.value))
+    })
+  }
+
+  const createRow = (name = ''): HTMLElement => {
     const row = document.createElement('div')
     row.className = 'player-row'
     row.dataset.playerRow = ''
     row.innerHTML = `
-      <span class="player-index">${count + 1}</span>
+      <span class="player-index"></span>
       <label class="field"><span class="sr-only">Player name</span><input type="text" name="player_name" placeholder="Player name" autocomplete="off"></label>
       <label class="field field--score"><span class="sr-only">Score</span><input type="text" name="player_score" placeholder="Score"></label>
-      <label class="check check--inline"><input type="checkbox" name="player_winner" value="${count}"><span>Won</span></label>
+      <label class="check check--inline"><input type="checkbox" name="player_winner" value=""><span>Won</span></label>
       <button class="icon-button icon-button--danger" type="button" data-remove-player aria-label="Remove player"><svg><use href="#i-close"/></svg></button>`
+    const input = nameInput(row)
+    if (input) input.value = name
     container.appendChild(row)
-    row.querySelector<HTMLInputElement>('input[name="player_name"]')?.focus()
+    renumber()
+    return row
+  }
+
+  const removeRow = (row: HTMLElement) => {
+    row.remove()
+    renumber()
+    syncKnown()
+  }
+
+  add.addEventListener('click', () => {
+    if (rows().length >= MAX_PLAYERS) return
+    const row = createRow()
+    nameInput(row)?.focus()
+    syncKnown()
   })
 
   container.addEventListener('click', (event) => {
     const button = (event.target as HTMLElement).closest('[data-remove-player]')
     if (!button) return
-    const rows = container.querySelectorAll('[data-player-row]')
-    if (rows.length <= 1) {
-      rows.forEach((row) => row.querySelectorAll<HTMLInputElement>('input').forEach((input) => {
-        if (input.type === 'checkbox') input.checked = false
-        else input.value = ''
-      }))
+    const current = rows()
+    if (current.length <= 1) {
+      current.forEach((row) => {
+        row.querySelectorAll<HTMLInputElement>('input').forEach((input) => {
+          if (input.type === 'checkbox') input.checked = false
+          else input.value = ''
+        })
+        delete row.dataset.knownName
+      })
+      syncKnown()
       return
     }
-    button.closest('[data-player-row]')?.remove()
-    renumber()
+    const row = button.closest<HTMLElement>('[data-player-row]')
+    if (row) removeRow(row)
+  })
+
+  knownBoxes.forEach((box) => {
+    box.addEventListener('change', () => {
+      const name = box.value.trim()
+      const match = rowNamed(name)
+      if (box.checked) {
+        if (match) return
+        if (rows().length >= MAX_PLAYERS) {
+          box.checked = false
+          return
+        }
+        const row = createRow(name)
+        row.dataset.knownName = name
+        return
+      }
+      if (!match || !match.dataset.knownName) return
+      const untouched = (match.querySelector<HTMLInputElement>('input[name="player_score"]')?.value.trim() ?? '') === '' &&
+        !Array.from(match.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')).some((input) => input.checked)
+      // A row with a score or a ticked box stays; keep the chip on so the
+      // checkbox never disagrees with the row still on screen.
+      if (untouched) removeRow(match)
+      else box.checked = true
+    })
   })
 
   renumber()
+  syncKnown()
 }
 
 interface SyncStatus {

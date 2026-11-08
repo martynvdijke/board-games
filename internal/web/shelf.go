@@ -204,7 +204,8 @@ func (h *Handler) newPlayPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	selected := int64(parseInt(r.URL.Query().Get("game"), 0))
-	data := &PlayFormData{Games: games, Today: time.Now().Format("2006-01-02"), SelectedGameID: selected,
+	known, _ := h.Plays.RecentPlayers(ctx, user.ID, 12)
+	data := &PlayFormData{Games: games, KnownPlayers: known, Today: time.Now().Format("2006-01-02"), SelectedGameID: selected,
 		Attempt: playAttempt{PlayedAt: time.Now().Format("2006-01-02"), Quantity: 1, Players: blankPlayers(2)}}
 	p := h.page(r, "Log a play", "plays", "")
 	p.Data = data
@@ -242,7 +243,8 @@ func (h *Handler) editPlayPage(w http.ResponseWriter, r *http.Request) {
 		h.errorPage(w, r, http.StatusInternalServerError, "We couldn't load your games", err)
 		return
 	}
-	data := &PlayFormData{Play: play, Games: games, Today: time.Now().Format("2006-01-02"), Editing: true, SelectedGameID: play.GameID,
+	known, _ := h.Plays.RecentPlayers(ctx, user.ID, 12)
+	data := &PlayFormData{Play: play, Games: games, KnownPlayers: known, Today: time.Now().Format("2006-01-02"), Editing: true, SelectedGameID: play.GameID,
 		Attempt: playAttempt{GameID: play.GameID, PlayedAt: play.PlayedAt, Location: play.Location, Duration: play.Duration, Quantity: play.Quantity, Notes: play.Notes, Players: play.Players}}
 	p := h.page(r, "Edit play", "plays", "")
 	p.Data = data
@@ -278,7 +280,8 @@ func (h *Handler) renderPlayForm(w http.ResponseWriter, r *http.Request, attempt
 	defer cancel()
 	user := auth.UserFromContext(r.Context())
 	games, _ := h.Plays.ShelfGames(ctx, user.ID)
-	data := &PlayFormData{Games: games, Today: time.Now().Format("2006-01-02"), Editing: mode == "edit", SelectedGameID: attempt.GameID, Attempt: attempt}
+	known, _ := h.Plays.RecentPlayers(ctx, user.ID, 12)
+	data := &PlayFormData{Games: games, KnownPlayers: known, Today: time.Now().Format("2006-01-02"), Editing: mode == "edit", SelectedGameID: attempt.GameID, Attempt: attempt}
 	if mode == "edit" {
 		if play, err := h.Plays.Get(ctx, user.ID, r.PathValue("id")); err == nil {
 			data.Play = play

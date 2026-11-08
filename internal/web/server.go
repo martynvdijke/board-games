@@ -128,6 +128,7 @@ type PlayFormData struct {
 	Play           *plays.Play
 	Attempt        playAttempt
 	Games          []plays.GameOption
+	KnownPlayers   []string
 	Today          string
 	Editing        bool
 	SelectedGameID int64

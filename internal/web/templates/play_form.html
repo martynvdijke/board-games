@@ -28,6 +28,16 @@
       <label class="field"><span>Copies / rounds</span><input type="number" name="quantity" min="1" max="50" value="{{if $d.Attempt.Quantity}}{{$d.Attempt.Quantity}}{{else}}1{{end}}"></label>
     </div>
 
+    {{if $d.KnownPlayers}}
+    <fieldset class="players-fieldset known-players">
+      <legend>Played with before</legend>
+      <p class="field-hint known-players-hint">Tick everyone who joined. You can still type a new name below.</p>
+      <div class="known-player-chips">
+        {{range $d.KnownPlayers}}<label class="known-player-chip"><input type="checkbox" data-known-player value="{{.}}"><span>{{.}}</span></label>{{end}}
+      </div>
+    </fieldset>
+    {{end}}
+
     <fieldset class="players-fieldset">
       <div class="fieldset-head">
         <legend>Players</legend>
