@@ -1,3 +1,10 @@
+# [1.9.0](https://github.com/martynvdijke/board-games/compare/v1.8.0...v1.9.0) (2026-11-08)
+
+
+### Features
+
+* **mobile:** fetch OpenTelemetry endpoint from API at startup ([823a53d](https://github.com/martynvdijke/board-games/commit/823a53d09998ba4e0f3470e2fa233c783e7d7d74))
+
 # [1.8.0](https://github.com/martynvdijke/board-games/compare/v1.7.0...v1.8.0) (2026-11-05)
 
 
