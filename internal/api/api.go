@@ -49,6 +49,11 @@ func (h *Handler) Routes() http.Handler {
 	// Public discovery endpoint for companion apps; it deliberately bypasses
 	// bearer authentication so a fresh install can learn the demo credentials.
 	mux.Handle("GET /v1/auth/config", h.rateLimit(http.HandlerFunc(h.authConfig)))
+	// Public telemetry discovery so the companion app can resolve its OTLP
+	// exporter at runtime instead of at build time. Exposure is limited to an
+	// endpoint URL and feature flags; the endpoint itself must be reachable
+	// without a token, so this leaks no credential.
+	mux.Handle("GET /v1/otel-settings", h.rateLimit(http.HandlerFunc(h.otelSettings)))
 
 	v1 := http.NewServeMux()
 	v1.Handle("GET /me", auth.RequireScope("read", http.HandlerFunc(h.me)))

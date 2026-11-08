@@ -87,6 +87,101 @@ String randomHex(int bytes) {
 String buildTraceparent(String traceId, String spanId) =>
     '00-$traceId-$spanId-01';
 
+/// Runtime OpenTelemetry settings published by the web API.
+///
+/// Parsing is tolerant on purpose: the server may use either the short or the
+/// `otel_`-prefixed key names, and an older server may omit the per-signal
+/// flags entirely. An empty endpoint always means "telemetry is off".
+class OtelSettings {
+  const OtelSettings({
+    required this.endpoint,
+    required this.enabled,
+    required this.tracesEnabled,
+    this.metricsEnabled = false,
+    this.logsEnabled = false,
+    this.serviceName = '',
+  });
+
+  final String endpoint;
+  final bool enabled;
+  final bool tracesEnabled;
+  final bool metricsEnabled;
+  final bool logsEnabled;
+  final String serviceName;
+
+  factory OtelSettings.fromJson(Map<String, dynamic> json) {
+    final endpoint = (json['endpoint'] ?? json['otel_endpoint'] ?? '')
+        .toString()
+        .trim();
+    final enabled =
+        _asBool(json['enabled'] ?? json['otel_enabled']) ||
+        (json['enabled'] == null &&
+            json['otel_enabled'] == null &&
+            endpoint.isNotEmpty);
+    final traces = _asBool(
+      json['traces_enabled'],
+      fallback: enabled,
+    );
+    final usable = enabled && endpoint.isNotEmpty;
+    return OtelSettings(
+      endpoint: endpoint,
+      enabled: usable,
+      tracesEnabled: usable && traces,
+      metricsEnabled: usable && _asBool(json['metrics_enabled']),
+      logsEnabled: usable && _asBool(json['logs_enabled']),
+      serviceName: (json['service_name'] ?? json['otel_service_name'] ?? '')
+          .toString()
+          .trim(),
+    );
+  }
+
+  static bool _asBool(Object? value, {bool fallback = false}) {
+    if (value == null) return fallback;
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    final text = value.toString().trim().toLowerCase();
+    if (text == 'true' || text == '1' || text == 'yes' || text == 'on') {
+      return true;
+    }
+    if (text == 'false' || text == '0' || text == 'no' || text == 'off') {
+      return false;
+    }
+    return fallback;
+  }
+}
+
+/// Resolves the OTLP endpoint from the web API. Never throws: offline, slow,
+/// malformed, or non-200 responses all yield `null` so startup can continue
+/// with the compile-time configuration.
+Future<OtelSettings?> fetchOtelSettings(
+  String baseUrl, {
+  http.Client? client,
+  Duration timeout = const Duration(seconds: 3),
+}) async {
+  final owned = client == null;
+  final httpClient = client ?? http.Client();
+  try {
+    final base = baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
+    if (base.isEmpty) return null;
+    final uri = Uri.tryParse('$base/api/v1/otel-settings');
+    if (uri == null) return null;
+    final response = await httpClient
+        .get(uri, headers: {'Accept': 'application/json'})
+        .timeout(timeout);
+    if (response.statusCode != 200) return null;
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map) return null;
+    final map = decoded['data'] is Map
+        ? Map<String, dynamic>.from(decoded['data'] as Map)
+        : Map<String, dynamic>.from(decoded);
+    return OtelSettings.fromJson(map);
+  } catch (_) {
+    return null;
+  } finally {
+    if (owned) httpClient.close();
+  }
+}
+
 class TraceSpan {
   TraceSpan({
     required this.name,
@@ -202,19 +297,40 @@ class Telemetry {
   bool get otelEnabled => _tracesEndpoint.isNotEmpty;
   bool get umamiEnabled => TelemetryConfig.umamiEnabled;
 
-  Future<void> start() async {
+  Future<void> start({String? endpoint, Map<String, String>? headers}) async {
     if (_started) return;
     _started = true;
-    if (TelemetryConfig.otelEnabled) {
+    final raw = (endpoint ?? TelemetryConfig.otelEndpoint).trim();
+    final usable = raw.isNotEmpty && !kIsWeb;
+    if (usable) {
       _client = http.Client();
-      _tracesEndpoint = _normalizeEndpoint(TelemetryConfig.otelEndpoint);
-      _headers = parseOtelHeaders(TelemetryConfig.otelHeaders);
+      _tracesEndpoint = normalizeEndpoint(raw);
+      _headers = headers ?? parseOtelHeaders(TelemetryConfig.otelHeaders);
       _timer = Timer.periodic(const Duration(seconds: 5), (_) => _flush());
     }
     if (otelEnabled) {
       final span = beginSpan('app.start');
       span.end();
     }
+  }
+
+  /// Starts the exporter from the endpoint published by the web API.
+  ///
+  /// Uses the server settings when they enable traces, otherwise falls back to
+  /// the compile-time `--dart-define` configuration and finally stays idle.
+  /// Never throws, so it is safe to call unawaited during startup.
+  Future<void> startFromServer(String baseUrl, {http.Client? client}) async {
+    OtelSettings? settings;
+    try {
+      settings = await fetchOtelSettings(baseUrl, client: client);
+    } catch (_) {
+      settings = null;
+    }
+    if (settings != null && settings.enabled && settings.tracesEnabled) {
+      await start(endpoint: settings.endpoint);
+      return;
+    }
+    await start();
   }
 
   TraceSpan beginSpan(
@@ -354,7 +470,20 @@ class Telemetry {
     _client = null;
   }
 
-  static String _normalizeEndpoint(String raw) {
+  /// Clears runtime state so tests can exercise startup gating more than once.
+  @visibleForTesting
+  void resetForTest() {
+    _timer?.cancel();
+    _timer = null;
+    _client?.close();
+    _client = null;
+    _queue.clear();
+    _started = false;
+    _tracesEndpoint = '';
+    _headers = const {};
+  }
+
+  static String normalizeEndpoint(String raw) {
     final base = raw.trim().replaceAll(RegExp(r'/+$'), '');
     if (base.endsWith('/v1/traces')) return base;
     return '$base/v1/traces';
