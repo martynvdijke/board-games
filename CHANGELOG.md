@@ -1,3 +1,10 @@
+## [1.11.2](https://github.com/martynvdijke/board-games/compare/v1.11.1...v1.11.2) (2026-11-10)
+
+
+### Bug Fixes
+
+* **renovate:** disable platform automerge so Renovate merges green PRs itself ([ba9ec8c](https://github.com/martynvdijke/board-games/commit/ba9ec8cb1aee8020b347f47501b6189abb03c85d))
+
 ## [1.11.1](https://github.com/martynvdijke/board-games/compare/v1.11.0...v1.11.1) (2026-11-10)
 
 
