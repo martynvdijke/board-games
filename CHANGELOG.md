@@ -1,3 +1,10 @@
+# [1.11.0](https://github.com/martynvdijke/board-games/compare/v1.10.0...v1.11.0) (2026-11-10)
+
+
+### Features
+
+* **collection:** add acquisition value insights ([626af69](https://github.com/martynvdijke/board-games/commit/626af69baae74502d8f9422d55aec55e01e67e2a))
+
 # [1.10.0](https://github.com/martynvdijke/board-games/compare/v1.9.0...v1.10.0) (2026-11-08)
 
 
