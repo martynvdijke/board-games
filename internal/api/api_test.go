@@ -204,6 +204,244 @@ func TestPaginationValidation(t *testing.T) {
 
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }
 
+// addOwnedGame inserts a catalogue row and marks it owned for the given user,
+// so tests never depend on seeded ids.
+func (f *fixture) addOwnedGame(t *testing.T, userID string, bggID int, name string) int64 {
+	t.Helper()
+	now := db.Now()
+	res, err := f.db.Exec(`INSERT INTO games(bgg_id,name,sort_name,year_published,min_players,max_players,min_playtime,max_playtime,weight,created_at,updated_at) VALUES(?,?,?,2000,2,4,30,60,2.0,?,?)`,
+		bggID, name, name, now, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.db.Exec(`INSERT INTO user_games(user_id,game_id,owned,added_at,updated_at) VALUES(?,?,1,?,?)`, userID, id, now, now); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func (f *fixture) patchShelf(t *testing.T, token string, gameID int64, body map[string]any) {
+	t.Helper()
+	rr := f.request(t, http.MethodPatch, "/v1/games/"+itoa(gameID), token, body)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("patch game %d: %d %s", gameID, rr.Code, rr.Body)
+	}
+}
+
+func (f *fixture) gameDetail(t *testing.T, token string, gameID int64) map[string]any {
+	t.Helper()
+	rr := f.request(t, http.MethodGet, "/v1/games/"+itoa(gameID), token, nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("get game %d: %d %s", gameID, rr.Code, rr.Body)
+	}
+	body := decode(t, rr)
+	return body["data"].(map[string]any)["game"].(map[string]any)
+}
+
+func (f *fixture) addPlay(t *testing.T, token string, gameID int64, duration, quantity int) {
+	t.Helper()
+	payload := map[string]any{"game_id": gameID, "played_at": "2026-05-01", "quantity": quantity}
+	if duration > 0 {
+		payload["duration_minutes"] = duration
+	}
+	rr := f.request(t, http.MethodPost, "/v1/plays", token, payload)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("create play: %d %s", rr.Code, rr.Body)
+	}
+}
+
+func TestPipelineResource(t *testing.T) {
+	f := setupAPI(t)
+	rr := f.request(t, http.MethodGet, "/v1/pipeline", f.read, nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("pipeline: %d %s", rr.Code, rr.Body)
+	}
+	body := decode(t, rr)
+	buckets, ok := body["buckets"].([]any)
+	if !ok || len(buckets) != 5 {
+		t.Fatalf("expected 5 buckets, got %v", body["buckets"])
+	}
+	wantStates := []string{"wishlist", "want_to_play", "preordered", "for_trade", "unplayed"}
+	wantLabels := []string{"Wishlist", "Want to play", "Preordered", "For trade", "Owned, never played"}
+	for i, raw := range buckets {
+		b := raw.(map[string]any)
+		if b["state"] != wantStates[i] {
+			t.Errorf("bucket %d state = %v, want %q", i, b["state"], wantStates[i])
+		}
+		if b["label"] != wantLabels[i] {
+			t.Errorf("bucket %d label = %v, want %q", i, b["label"], wantLabels[i])
+		}
+		if _, ok := b["games"].([]any); !ok {
+			t.Errorf("bucket %d games is not an array: %v", i, b["games"])
+		}
+	}
+	for i := 0; i < 4; i++ {
+		if got := buckets[i].(map[string]any)["count"].(float64); got != 0 {
+			t.Errorf("bucket %d count = %v, want 0", i, got)
+		}
+	}
+	unplayed := buckets[4].(map[string]any)
+	if got := unplayed["count"].(float64); got != 1 {
+		t.Fatalf("unplayed count = %v, want 1", got)
+	}
+	games := unplayed["games"].([]any)
+	if len(games) != 1 {
+		t.Fatalf("unplayed games = %d, want 1", len(games))
+	}
+	if got := int64(games[0].(map[string]any)["id"].(float64)); got != f.gameID {
+		t.Fatalf("unplayed game id = %d, want %d", got, f.gameID)
+	}
+}
+
+func TestPipelineLimitValidation(t *testing.T) {
+	f := setupAPI(t)
+	for _, q := range []string{"limit=0", "limit=97", "limit=abc"} {
+		rr := f.request(t, http.MethodGet, "/v1/pipeline?"+q, f.read, nil)
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("%s: expected 400, got %d", q, rr.Code)
+			continue
+		}
+		body := decode(t, rr)
+		env, ok := body["error"].(map[string]any)
+		if !ok || env["code"] == "" {
+			t.Errorf("%s: missing error envelope: %s", q, rr.Body)
+		}
+	}
+}
+
+func TestPipelineRequiresAuthentication(t *testing.T) {
+	f := setupAPI(t)
+	rr := f.request(t, http.MethodGet, "/v1/pipeline", "", nil)
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d: %s", rr.Code, rr.Body)
+	}
+}
+
+func TestGameValueFields(t *testing.T) {
+	f := setupAPI(t)
+	f.patchShelf(t, f.write, f.gameID, map[string]any{"price_paid_cents": 3000, "acquisition_date": "2026-01-15"})
+
+	game := f.gameDetail(t, f.read, f.gameID)
+	if game["acquisition_date"] != "2026-01-15" {
+		t.Errorf("acquisition_date = %v", game["acquisition_date"])
+	}
+	if got := game["price_paid_cents"].(float64); got != 3000 {
+		t.Errorf("price_paid_cents = %v, want 3000", got)
+	}
+	if game["price_per_play_cents"] != nil {
+		t.Errorf("price_per_play_cents = %v, want null without plays", game["price_per_play_cents"])
+	}
+	if game["price_per_hour_cents"] != nil {
+		t.Errorf("price_per_hour_cents = %v, want null without plays", game["price_per_hour_cents"])
+	}
+
+	f.addPlay(t, f.write, f.gameID, 120, 1)
+	game = f.gameDetail(t, f.read, f.gameID)
+	if got := game["price_per_play_cents"].(float64); got != 3000 {
+		t.Errorf("price_per_play_cents = %v, want 3000", got)
+	}
+	if got := game["price_per_hour_cents"].(float64); got != 1500 {
+		t.Errorf("price_per_hour_cents = %v, want 1500", got)
+	}
+}
+
+func TestCostPerPlayWithoutDuration(t *testing.T) {
+	f := setupAPI(t)
+	f.patchShelf(t, f.write, f.gameID, map[string]any{"price_paid_cents": 2000})
+	f.addPlay(t, f.write, f.gameID, 0, 4)
+
+	game := f.gameDetail(t, f.read, f.gameID)
+	if got := game["price_per_play_cents"].(float64); got != 500 {
+		t.Errorf("price_per_play_cents = %v, want 500", got)
+	}
+	if game["price_per_hour_cents"] != nil {
+		t.Errorf("price_per_hour_cents = %v, want null without durations", game["price_per_hour_cents"])
+	}
+	if game["acquisition_date"] != nil {
+		t.Errorf("acquisition_date = %v, want null", game["acquisition_date"])
+	}
+}
+
+func TestStatsCollectionValue(t *testing.T) {
+	f := setupAPI(t)
+	f.patchShelf(t, f.write, f.gameID, map[string]any{"price_paid_cents": 3000})
+	f.addPlay(t, f.write, f.gameID, 60, 2)
+
+	unplayedID := f.addOwnedGame(t, f.user.ID, 99, "Unplayed Purchase")
+	f.patchShelf(t, f.write, unplayedID, map[string]any{"price_paid_cents": 2000})
+
+	rr := f.request(t, http.MethodGet, "/v1/stats", f.read, nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("stats: %d %s", rr.Code, rr.Body)
+	}
+	body := decode(t, rr)
+	cv, ok := body["data"].(map[string]any)["collection_value"].(map[string]any)
+	if !ok {
+		t.Fatalf("missing collection_value: %s", rr.Body)
+	}
+	if got := cv["total_paid_cents"].(float64); got != 5000 {
+		t.Errorf("total_paid_cents = %v, want 5000", got)
+	}
+	if got := cv["paid_games"].(float64); got != 2 {
+		t.Errorf("paid_games = %v, want 2", got)
+	}
+	if got := cv["unplayed_capital_cents"].(float64); got != 2000 {
+		t.Errorf("unplayed_capital_cents = %v, want 2000", got)
+	}
+	if got := cv["median_cost_per_play_cents"].(float64); got != 1500 {
+		t.Errorf("median_cost_per_play_cents = %v, want 1500", got)
+	}
+}
+
+func TestValueDataIsUserScoped(t *testing.T) {
+	f := setupAPI(t)
+	f.patchShelf(t, f.write, f.gameID, map[string]any{"price_paid_cents": 3000})
+	f.addPlay(t, f.write, f.gameID, 60, 1)
+
+	other, err := f.handler.Auth.UpsertUser(context.Background(), "other@example.com", "Other", "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherToken, _, err := f.handler.Auth.CreateToken(context.Background(), other.ID, "other", []string{"read", "write"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherGame := f.addOwnedGame(t, other.ID, 77, "Other Shelf Game")
+	f.patchShelf(t, otherToken, otherGame, map[string]any{"price_paid_cents": 9999})
+	f.addPlay(t, otherToken, otherGame, 120, 1)
+
+	rr := f.request(t, http.MethodGet, "/v1/pipeline", f.read, nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("pipeline: %d %s", rr.Code, rr.Body)
+	}
+	body := decode(t, rr)
+	for _, raw := range body["buckets"].([]any) {
+		b := raw.(map[string]any)
+		for _, rawGame := range b["games"].([]any) {
+			if id := int64(rawGame.(map[string]any)["id"].(float64)); id == otherGame {
+				t.Fatalf("other user's game %d leaked into bucket %v", id, b["state"])
+			}
+		}
+	}
+
+	rr = f.request(t, http.MethodGet, "/v1/stats", f.read, nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("stats: %d %s", rr.Code, rr.Body)
+	}
+	statsBody := decode(t, rr)
+	cv := statsBody["data"].(map[string]any)["collection_value"].(map[string]any)
+	if got := cv["total_paid_cents"].(float64); got != 3000 {
+		t.Errorf("total_paid_cents = %v, want only the first user's 3000", got)
+	}
+	if got := cv["paid_games"].(float64); got != 1 {
+		t.Errorf("paid_games = %v, want only the first user's 1", got)
+	}
+}
+
 func TestUnknownEndpointUsesErrorEnvelope(t *testing.T) {
 	f := setupAPI(t)
 	rr := f.request(t, http.MethodGet, "/v1/does-not-exist", f.read, nil)

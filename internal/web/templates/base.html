@@ -61,6 +61,7 @@
     </a>
     <nav class="site-nav" aria-label="Main">
       <a href="/" {{if eq .Active "shelf"}}aria-current="page"{{end}}><svg><use href="#i-shelf"/></svg><span>Shelf</span></a>
+      <a href="/pipeline" {{if eq .Active "pipeline"}}aria-current="page"{{end}}><svg><use href="#i-arrow"/></svg><span>Pipeline</span></a>
       <a href="/plays" {{if eq .Active "plays"}}aria-current="page"{{end}}><svg><use href="#i-dice"/></svg><span>Play log</span></a>
       <a href="/stats" {{if eq .Active "stats"}}aria-current="page"{{end}}><svg><use href="#i-chart"/></svg><span>Stats</span></a>
       <a href="/settings" {{if eq .Active "settings"}}aria-current="page"{{end}}><svg><use href="#i-settings"/></svg><span>Settings</span></a>
@@ -81,6 +82,7 @@
   {{if .User}}
   <nav class="mobile-nav" aria-label="Main">
     <a href="/" {{if eq .Active "shelf"}}aria-current="page"{{end}}><svg><use href="#i-shelf"/></svg><span>Shelf</span></a>
+    <a href="/pipeline" {{if eq .Active "pipeline"}}aria-current="page"{{end}}><svg><use href="#i-arrow"/></svg><span>Pipeline</span></a>
     <a href="/plays" {{if eq .Active "plays"}}aria-current="page"{{end}}><svg><use href="#i-dice"/></svg><span>Plays</span></a>
     <a href="/stats" {{if eq .Active "stats"}}aria-current="page"{{end}}><svg><use href="#i-chart"/></svg><span>Stats</span></a>
     <a href="/settings" {{if eq .Active "settings"}}aria-current="page"{{end}}><svg><use href="#i-settings"/></svg><span>Settings</span></a>

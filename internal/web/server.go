@@ -106,6 +106,13 @@ func (d *OverviewData) queryURL(page int) string {
 	return "/"
 }
 
+type PipelineData struct {
+	Buckets      []collection.PipelineBucket
+	Total        int
+	AllEmpty     bool
+	TradeReasons map[int64]string // game id -> trade-candidate reason
+}
+
 type GameData struct {
 	Game      *collection.GameDetail
 	PlayToday string
@@ -204,6 +211,7 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("POST /plays/{id}", h.requireUser(h.updatePlay))
 	mux.HandleFunc("POST /plays/{id}/delete", h.requireUser(h.deletePlay))
 	mux.HandleFunc("GET /stats", h.requireUser(h.statsPage))
+	mux.HandleFunc("GET /pipeline", h.requireUser(h.pipeline))
 	mux.HandleFunc("GET /settings", h.requireUser(h.settingsPage))
 	mux.HandleFunc("POST /settings/bgg", h.requireUser(h.saveBGG))
 	mux.HandleFunc("POST /settings/bgg-token", h.requireUser(h.saveBGGToken))

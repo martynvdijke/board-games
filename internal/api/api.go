@@ -62,6 +62,7 @@ func (h *Handler) Routes() http.Handler {
 	v1.Handle("GET /games", auth.RequireScope("read", http.HandlerFunc(h.listGames)))
 	v1.Handle("GET /games/{id}", auth.RequireScope("read", http.HandlerFunc(h.getGame)))
 	v1.Handle("PATCH /games/{id}", auth.RequireScope("write", http.HandlerFunc(h.patchGame)))
+	v1.Handle("GET /pipeline", auth.RequireScope("read", http.HandlerFunc(h.pipeline)))
 	v1.Handle("GET /plays", auth.RequireScope("read", http.HandlerFunc(h.listPlays)))
 	v1.Handle("POST /plays", auth.RequireScope("write", http.HandlerFunc(h.createPlay)))
 	v1.Handle("GET /plays/{id}", auth.RequireScope("read", http.HandlerFunc(h.getPlay)))
@@ -156,15 +157,27 @@ type gameJSON struct {
 	AddedAt     string   `json:"added_at,omitempty"`
 	IsExpansion bool     `json:"is_expansion"`
 	Notes       string   `json:"notes,omitempty"`
+
+	AcquisitionDate   *string  `json:"acquisition_date"`
+	PricePaidCents    *int     `json:"price_paid_cents"`
+	PricePerPlayCents *float64 `json:"price_per_play_cents"`
+	PricePerHourCents *float64 `json:"price_per_hour_cents"`
 }
 
 func (h *Handler) gameJSON(g collection.GameCard) gameJSON {
+	var acquisitionDate *string
+	if g.AcquisitionDate != "" {
+		v := g.AcquisitionDate
+		acquisitionDate = &v
+	}
 	return gameJSON{ID: g.ID, BGGID: g.BGGID, Name: g.Name, Year: g.Year, ImageURL: h.absolute(g.CoverURL()),
 		BGGURL: g.BGGURL(), MinPlayers: g.MinPlayers, MaxPlayers: g.MaxPlayers, MinPlaytime: g.MinPlaytime,
 		MaxPlaytime: g.MaxPlaytime, MinAge: g.MinAge, Weight: round1(g.Weight), BGGRating: round1(g.BGGRating), BGGRank: g.BGGRank,
 		UserRating: g.UserRating, Owned: g.Owned, Wishlist: g.Wishlist, WantToPlay: g.WantToPlay, Preordered: g.Preordered,
 		ForTrade: g.ForTrade, Favorite: g.Favorite, BGGNumPlays: g.BGGNumPlays, LocalPlays: g.LocalPlays,
-		TotalPlays: g.TotalPlays, AddedAt: g.AddedAt, IsExpansion: g.IsExpansion, Notes: g.Notes}
+		TotalPlays: g.TotalPlays, AddedAt: g.AddedAt, IsExpansion: g.IsExpansion, Notes: g.Notes,
+		AcquisitionDate: acquisitionDate, PricePaidCents: g.PricePaid,
+		PricePerPlayCents: round2Ptr(g.CostPerPlayPence), PricePerHourCents: round2Ptr(g.CostPerHourPence)}
 }
 
 func (h *Handler) listGames(w http.ResponseWriter, r *http.Request) {
@@ -222,6 +235,44 @@ func (h *Handler) getGame(w http.ResponseWriter, r *http.Request) {
 		"designers": game.Designers, "publishers": game.Publishers, "location": game.Location,
 		"condition": game.Condition, "price_paid_cents": game.PricePaid, "setup_notes": game.SetupNotes,
 	}})
+}
+
+// pipeline returns the five acquisition states in a fixed order. Games are
+// grouped from the existing user_games flags, so a game can appear in more
+// than one bucket; count is the full total while games is capped at limit.
+func (h *Handler) pipeline(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	user := auth.UserFromContext(r.Context())
+	q := r.URL.Query()
+	limit := 24
+	fields := map[string]string{}
+	if raw := strings.TrimSpace(q.Get("limit")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 || n > 96 {
+			fields["limit"] = "must be between 1 and 96"
+		} else {
+			limit = n
+		}
+	}
+	if len(fields) > 0 {
+		writeError(w, http.StatusBadRequest, "invalid_pagination", "Pagination is invalid.", fields)
+		return
+	}
+	buckets, err := h.Games.Pipeline(ctx, user.ID, limit, collection.Filters{})
+	if err != nil {
+		serverError(w, "pipeline", err)
+		return
+	}
+	out := make([]map[string]any, 0, len(buckets))
+	for _, b := range buckets {
+		games := make([]gameJSON, 0, len(b.Games))
+		for _, g := range b.Games {
+			games = append(games, h.gameJSON(g))
+		}
+		out = append(out, map[string]any{"state": b.State, "label": b.Label, "count": b.Count, "games": games})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"buckets": out})
 }
 
 type collectionPatch struct {
@@ -485,6 +536,12 @@ func (h *Handler) stats(w http.ResponseWriter, r *http.Request) {
 		"shelf": map[string]any{"owned": shelf.Owned, "unplayed": shelf.Unplayed, "wishlist": shelf.Wishlist,
 			"plays_this_year": shelf.PlaysThisYear, "total_plays": shelf.TotalPlays,
 			"longest_unplayed": shelf.LongestUnplayed, "longest_wait_days": shelf.LongestWaitDays},
+		"collection_value": map[string]any{
+			"total_paid_cents":           shelf.TotalPaidPence,
+			"paid_games":                 shelf.PaidGames,
+			"unplayed_capital_cents":     shelf.UnplayedCapitalPence,
+			"median_cost_per_play_cents": shelf.MedianCostPerPlayPence,
+		},
 	}})
 }
 
@@ -626,6 +683,16 @@ func floatParam(v string) float64 {
 }
 
 func round1(v float64) float64 { return math.Round(v*10) / 10 }
+
+func round2(v float64) float64 { return math.Round(v*100) / 100 }
+
+func round2Ptr(v *float64) *float64 {
+	if v == nil {
+		return nil
+	}
+	r := round2(*v)
+	return &r
+}
 
 // limiter is a small per-user fixed-window limiter. It is intentionally
 // in-memory: one instance serves this single-user deployment behind a proxy.

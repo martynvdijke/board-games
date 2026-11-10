@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -155,7 +156,134 @@ func (r *Repo) List(ctx context.Context, userID string, f Filters) ([]GameCard, 
 		}
 		out = append(out, g)
 	}
-	return out, total, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, 0, err
+	}
+	// Cost metrics are derived from a separate batched query so the
+	// hand-maintained cardColumns/scanCard pair stays untouched.
+	if err := r.applyCostMetrics(ctx, userID, out); err != nil {
+		return nil, 0, err
+	}
+	return out, total, nil
+}
+
+// playAgg is the recorded-play aggregate for one game.
+type playAgg struct {
+	Plays   int
+	Minutes int
+}
+
+// valueMetrics returns the recorded play count and summed duration per game in
+// one user-scoped query. The denominator is the recorded plays only: BGG's
+// bgg_num_plays is deliberately not added, because synced plays already exist
+// as rows with origin='bgg' and adding the counter would double-count them.
+func (r *Repo) valueMetrics(ctx context.Context, userID string, gameIDs []int64) (map[int64]playAgg, error) {
+	out := make(map[int64]playAgg, len(gameIDs))
+	if len(gameIDs) == 0 {
+		return out, nil
+	}
+	placeholders, args := idList(userID, gameIDs)
+	rows, err := r.DB.QueryContext(ctx,
+		`SELECT game_id, COALESCE(SUM(quantity),0), COALESCE(SUM(COALESCE(duration_minutes,0)),0)
+		 FROM plays WHERE user_id=? AND game_id IN (`+placeholders+`) GROUP BY game_id`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("value metrics: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var agg playAgg
+		if err := rows.Scan(&id, &agg.Plays, &agg.Minutes); err != nil {
+			return nil, fmt.Errorf("value metrics: %w", err)
+		}
+		out[id] = agg
+	}
+	return out, rows.Err()
+}
+
+// pricesFor returns price_paid per game for the user's shelf rows. It is a
+// separate small batched query so cardColumns/scanCard stay untouched.
+func (r *Repo) pricesFor(ctx context.Context, userID string, gameIDs []int64) (map[int64]int, error) {
+	out := make(map[int64]int, len(gameIDs))
+	if len(gameIDs) == 0 {
+		return out, nil
+	}
+	placeholders, args := idList(userID, gameIDs)
+	rows, err := r.DB.QueryContext(ctx,
+		`SELECT game_id, price_paid FROM user_games WHERE user_id=? AND price_paid IS NOT NULL AND game_id IN (`+placeholders+`)`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("price metrics: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var price int
+		if err := rows.Scan(&id, &price); err != nil {
+			return nil, fmt.Errorf("price metrics: %w", err)
+		}
+		out[id] = price
+	}
+	return out, rows.Err()
+}
+
+// idList builds the placeholder list for "IN (...)" and the matching arguments.
+func idList(userID string, gameIDs []int64) (string, []any) {
+	placeholders := make([]string, len(gameIDs))
+	args := make([]any, 0, len(gameIDs)+1)
+	args = append(args, userID)
+	for i, id := range gameIDs {
+		placeholders[i] = "?"
+		args = append(args, id)
+	}
+	return strings.Join(placeholders, ","), args
+}
+
+// applyCostMetrics fills PricePaid and the derived cost fields on cards after
+// they have been scanned. Cost is undefined (nil) rather than zero when a
+// denominator is missing, and when no price was recorded.
+func (r *Repo) applyCostMetrics(ctx context.Context, userID string, cards []GameCard) error {
+	if len(cards) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(cards))
+	for _, c := range cards {
+		ids = append(ids, c.ID)
+	}
+	aggs, err := r.valueMetrics(ctx, userID, ids)
+	if err != nil {
+		return err
+	}
+	prices, err := r.pricesFor(ctx, userID, ids)
+	if err != nil {
+		return err
+	}
+	for i := range cards {
+		if price, ok := prices[cards[i].ID]; ok {
+			p := price
+			cards[i].PricePaid = &p
+		}
+		applyCost(&cards[i], aggs[cards[i].ID])
+	}
+	return nil
+}
+
+// applyCost sets the derived cost fields from an already-populated price.
+func applyCost(g *GameCard, agg playAgg) {
+	if g.PricePaid == nil || *g.PricePaid <= 0 {
+		return
+	}
+	price := float64(*g.PricePaid)
+	if agg.Plays > 0 {
+		v := price / float64(agg.Plays)
+		g.CostPerPlayPence = &v
+	}
+	if agg.Minutes > 0 {
+		v := price / (float64(agg.Minutes) / 60)
+		g.CostPerHourPence = &v
+	}
 }
 
 func sortClause(sort string) string {
@@ -174,6 +302,14 @@ func sortClause(sort string) string {
 		return "ug.added_at DESC, g.name COLLATE NOCASE"
 	case "plays":
 		return "(ug.bgg_num_plays + (SELECT COALESCE(SUM(p.quantity),0) FROM plays p WHERE p.game_id=g.id AND p.user_id=ug.user_id)) DESC, g.name COLLATE NOCASE"
+	case "cost_play":
+		expr := "CASE WHEN ug.price_paid IS NULL OR ug.price_paid<=0 THEN NULL ELSE 1.0*ug.price_paid/NULLIF((SELECT COALESCE(SUM(p.quantity),0) FROM plays p WHERE p.game_id=g.id AND p.user_id=ug.user_id),0) END"
+		return "(" + expr + ") IS NULL, (" + expr + ") ASC, g.name COLLATE NOCASE ASC"
+	case "cost_hour":
+		// 1.0*price*60/minutes is the same ordering as the per-hour metric
+		// (price / (minutes/60)); SUM ignores NULL durations.
+		expr := "CASE WHEN ug.price_paid IS NULL OR ug.price_paid<=0 THEN NULL ELSE 1.0*ug.price_paid*60/NULLIF((SELECT SUM(p.duration_minutes) FROM plays p WHERE p.game_id=g.id AND p.user_id=ug.user_id),0) END"
+		return "(" + expr + ") IS NULL, (" + expr + ") ASC, g.name COLLATE NOCASE ASC"
 	default:
 		return "g.name COLLATE NOCASE ASC"
 	}
@@ -231,6 +367,14 @@ func (r *Repo) Get(ctx context.Context, userID string, gameID int64) (*GameDetai
 		p := int(price.Int64)
 		d.PricePaid = &p
 	}
+	// Keep the embedded card's value fields in step with the detail fields and
+	// derive cost per play/hour from the recorded plays.
+	d.GameCard.PricePaid = d.PricePaid
+	aggs, err := r.valueMetrics(ctx, userID, []int64{gameID})
+	if err != nil {
+		return nil, err
+	}
+	applyCost(&d.GameCard, aggs[gameID])
 	d.SetupImages, _ = r.setupImages(ctx, userID, gameID)
 	d.Categories = r.namesFor(ctx, "game_categories", "category_id", "categories", gameID)
 	d.Mechanics = r.namesFor(ctx, "game_mechanics", "mechanic_id", "mechanics", gameID)
@@ -331,6 +475,21 @@ func (r *Repo) Stats(ctx context.Context, userID string) (ShelfStats, error) {
 	if err != nil {
 		return s, err
 	}
+	// Value totals. "Unplayed" mirrors the shelf's own definition: owned, no
+	// recorded plays and no BGG play count.
+	if err := r.DB.QueryRowContext(ctx, `SELECT
+		COALESCE(SUM(price_paid),0),
+		COALESCE(SUM(CASE WHEN price_paid IS NOT NULL THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN price_paid IS NOT NULL AND bgg_num_plays=0 AND NOT EXISTS (SELECT 1 FROM plays p WHERE p.game_id=ug.game_id AND p.user_id=ug.user_id) THEN price_paid ELSE 0 END),0)
+		FROM user_games ug WHERE ug.user_id=? AND ug.owned=1`, userID).
+		Scan(&s.TotalPaidPence, &s.PaidGames, &s.UnplayedCapitalPence); err != nil {
+		return s, err
+	}
+	median, err := r.medianCostPerPlay(ctx, userID)
+	if err != nil {
+		return s, err
+	}
+	s.MedianCostPerPlayPence = median
 	row := r.DB.QueryRowContext(ctx, "SELECT "+cardColumns+cardFrom+` WHERE ug.user_id=? AND ug.owned=1 AND g.is_expansion=0 AND ug.bgg_num_plays=0
 		AND NOT EXISTS (SELECT 1 FROM plays p WHERE p.game_id=g.id AND p.user_id=ug.user_id)
 		ORDER BY COALESCE(NULLIF(ug.acquisition_date,''), ug.added_at) ASC LIMIT 1`, userID)
@@ -353,6 +512,88 @@ func (r *Repo) Stats(ctx context.Context, userID string) (ShelfStats, error) {
 		return s, err
 	}
 	return s, nil
+}
+
+// medianCostPerPlay returns the median price per recorded play across owned
+// games that have both a usable price and at least one recorded play. The two
+// middle values are averaged for an even count.
+func (r *Repo) medianCostPerPlay(ctx context.Context, userID string) (*float64, error) {
+	rows, err := r.DB.QueryContext(ctx, `SELECT ug.price_paid,
+		COALESCE((SELECT SUM(p.quantity) FROM plays p WHERE p.game_id=ug.game_id AND p.user_id=ug.user_id),0)
+		FROM user_games ug
+		WHERE ug.user_id=? AND ug.owned=1 AND ug.price_paid IS NOT NULL AND ug.price_paid>0`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("median cost per play: %w", err)
+	}
+	defer rows.Close()
+	var costs []float64
+	for rows.Next() {
+		var price, plays int
+		if err := rows.Scan(&price, &plays); err != nil {
+			return nil, fmt.Errorf("median cost per play: %w", err)
+		}
+		if plays == 0 {
+			continue
+		}
+		costs = append(costs, float64(price)/float64(plays))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(costs) == 0 {
+		return nil, nil
+	}
+	sort.Float64s(costs)
+	var median float64
+	if n := len(costs); n%2 == 1 {
+		median = costs[n/2]
+	} else {
+		median = (costs[n/2-1] + costs[n/2]) / 2
+	}
+	return &median, nil
+}
+
+// pipelineBuckets fixes the presentation order and labels of the pipeline.
+var pipelineBuckets = []struct{ state, label string }{
+	{"wishlist", "Wishlist"},
+	{"want_to_play", "Want to play"},
+	{"preordered", "Preordered"},
+	{"for_trade", "For trade"},
+	{"unplayed", "Owned, never played"},
+}
+
+// Pipeline returns one bucket per acquisition state by reusing List, so
+// filtering, counting and ownership rules stay in one place. A game flagged in
+// several states appears in each matching bucket.
+func (r *Repo) Pipeline(ctx context.Context, userID string, perBucket int, f Filters) ([]PipelineBucket, error) {
+	if perBucket <= 0 {
+		perBucket = 24
+	}
+	out := make([]PipelineBucket, 0, len(pipelineBuckets))
+	for _, b := range pipelineBuckets {
+		filters := f
+		filters.Status = b.state
+		filters.Page = 1
+		filters.Offset = 0
+		filters.PerPage = perBucket
+		games, total, err := r.List(ctx, userID, filters)
+		if err != nil {
+			return nil, err
+		}
+		// The trade bucket is a ranked list, not a plain alphabetical one.
+		// Count stays the pre-cap total from List; only the visible order
+		// changes.
+		if b.state == "for_trade" && len(games) > 1 {
+			ranked := RankTradeCandidatesAt(games, time.Now())
+			ordered := make([]GameCard, len(ranked))
+			for i, c := range ranked {
+				ordered[i] = c.Game
+			}
+			games = ordered
+		}
+		out = append(out, PipelineBucket{State: b.state, Label: b.label, Count: total, Games: games})
+	}
+	return out, nil
 }
 
 func parseDate(s string) (time.Time, bool) {

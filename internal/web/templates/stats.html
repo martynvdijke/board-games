@@ -21,6 +21,11 @@
   <div class="stat-card"><span class="stat-label">Distinct games</span><span class="stat-big">{{len $s.TopGames}}</span><span class="stat-foot">made it to the table</span></div>
   <div class="stat-card"><span class="stat-label">Shelf of shame</span><span class="stat-big">{{$d.Shelf.Unplayed}}</span><span class="stat-foot">{{if $d.Shelf.Owned}}of {{$d.Shelf.Owned}} owned games{{else}}owned games{{end}}</span></div>
   <div class="stat-card"><span class="stat-label">All-time plays</span><span class="stat-big">{{$d.Shelf.TotalPlays}}</span><span class="stat-foot">across the whole shelf</span></div>
+  {{if gt $d.Shelf.PaidGames 0}}
+  <div class="stat-card"><span class="stat-label">Total paid</span><span class="stat-big stat-big--money">{{moneyInt $d.Shelf.TotalPaidPence}}</span><span class="stat-foot">across {{$d.Shelf.PaidGames}} priced {{if eq $d.Shelf.PaidGames 1}}game{{else}}games{{end}}</span></div>
+  <div class="stat-card"><span class="stat-label">Median cost per play</span><span class="stat-big stat-big--money">{{if $d.Shelf.MedianCostPerPlayPence}}{{moneyRate $d.Shelf.MedianCostPerPlayPence}}{{else}}—{{end}}</span><span class="stat-foot">paid games that reached the table</span></div>
+  <div class="stat-card"><span class="stat-label">Unplayed capital</span><span class="stat-big stat-big--money">{{moneyInt $d.Shelf.UnplayedCapitalPence}}</span><span class="stat-foot">paid for games never played</span></div>
+  {{end}}
 </section>
 
 <div class="stats-columns">

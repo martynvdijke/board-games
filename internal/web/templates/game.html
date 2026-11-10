@@ -34,6 +34,12 @@
       <div><dt>Min age</dt><dd>{{if $g.MinAge}}{{$g.MinAge}}+{{else}}—{{end}}</dd></div>
       <div><dt>BGG rating</dt><dd>{{if $g.BGGRating}}{{printf "%.1f" $g.BGGRating}}{{else}}—{{end}}{{if $g.BGGRank}} <small>#{{$g.BGGRank}}</small>{{end}}</dd></div>
       <div><dt>Your rating</dt><dd>{{if $g.UserRating}}<span class="rating-chip rating-chip--inline"><svg><use href="#i-star"/></svg>{{$g.RatingLabel}}</span>{{else}}—{{end}}</dd></div>
+      {{if $g.AcquisitionDate}}<div><dt>Acquired</dt><dd>{{dateLong $g.AcquisitionDate}}</dd></div>{{end}}
+      {{if $g.PricePaid}}<div><dt>Price paid</dt><dd>{{money $g.PricePaid}}</dd></div>{{end}}
+      {{if $g.CostPerPlayPence}}<div><dt>Cost per play</dt><dd>{{moneyRate $g.CostPerPlayPence}}</dd></div>{{end}}
+      {{if $g.CostPerHourPence}}<div><dt>Cost per hour</dt><dd>{{moneyRate $g.CostPerHourPence}}</dd></div>{{end}}
+      {{if $g.Location}}<div><dt>Location</dt><dd>{{$g.Location}}</dd></div>{{end}}
+      {{if $g.Condition}}<div><dt>Condition</dt><dd>{{$g.Condition}}</dd></div>{{end}}
     </dl>
 
     {{if $g.Description}}
@@ -152,7 +158,7 @@
           </select>
         </label>
         <label class="field"><span>Acquired</span><input type="date" name="acquisition_date" value="{{$g.AcquisitionDate}}"></label>
-        <label class="field"><span>Price paid (£)</span><input type="number" name="price_paid" min="0" step="0.01" value="{{pounds $g.PricePaid}}" placeholder="0.00"></label>
+        <label class="field"><span>Price paid ({{currencySymbol}})</span><input type="number" name="price_paid" min="0" step="0.01" value="{{pounds $g.PricePaid}}" placeholder="0.00"></label>
         <label class="field"><span>Location</span><input type="text" name="location" value="{{$g.Location}}" placeholder="Shelf, box, room…"></label>
         <label class="field"><span>Condition</span><input type="text" name="condition" value="{{$g.Condition}}" placeholder="Excellent, shelf wear…"></label>
       </div>

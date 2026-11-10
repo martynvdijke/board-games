@@ -54,6 +54,7 @@ type Config struct {
 	DemoUserEmail        string
 	DemoUserName         string
 	DemoUserToken        string
+	ShopCurrency         string
 	LogLevel             slog.Level
 	Timezone             string
 	Version              string
@@ -101,6 +102,7 @@ func Load() (*Config, error) {
 		DemoUserEmail:        strings.ToLower(strings.TrimSpace(env("DEMO_USER_EMAIL", "demo@theshelf.local"))),
 		DemoUserName:         env("DEMO_USER_NAME", "Shelf Demo"),
 		DemoUserToken:        strings.TrimSpace(os.Getenv("DEMO_USER_TOKEN")),
+		ShopCurrency:         currency(env("SHOP_CURRENCY", "GBP")),
 		LogLevel:             level(env("LOG_LEVEL", "info")),
 		Timezone:             env("TZ", "UTC"),
 		Version:              env("VERSION", "dev"),
@@ -245,6 +247,7 @@ func (c *Config) LogValue() slog.Value {
 		slog.Bool("demo_user_enabled", c.DemoUserEnabled),
 		slog.String("demo_user_token", redact(c.DemoUserToken)),
 		slog.String("timezone", c.Timezone),
+		slog.String("shop_currency", c.ShopCurrency),
 		slog.String("version", c.Version),
 	)
 }
@@ -254,6 +257,21 @@ func env(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// currency normalises an ISO 4217-style code. Anything that is not exactly
+// three ASCII letters falls back to GBP rather than failing startup.
+func currency(v string) string {
+	v = strings.ToUpper(strings.TrimSpace(v))
+	if len(v) != 3 {
+		return "GBP"
+	}
+	for i := 0; i < 3; i++ {
+		if v[i] < 'A' || v[i] > 'Z' {
+			return "GBP"
+		}
+	}
+	return v
 }
 
 func list(key string) []string {

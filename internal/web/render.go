@@ -25,14 +25,20 @@ var templateFS embed.FS
 var (
 	tmplMu    sync.RWMutex
 	tmplCache = map[string]*template.Template{}
-	partials  *template.Template
 )
 
 var tagRE = regexp.MustCompile(`<[^>]*>`)
 var spaceRE = regexp.MustCompile(`\s+`)
 var setupLinkRE = regexp.MustCompile(`https?://[^\s<>"']+`)
 
-func funcMap() template.FuncMap {
+// funcMap builds the template helpers for one instance currency. Passing the
+// currency keeps the helpers pure, so the template cache can be keyed by it.
+func funcMap(currencies ...string) template.FuncMap {
+	currency := "GBP"
+	if len(currencies) > 0 && strings.TrimSpace(currencies[0]) != "" {
+		currency = currencies[0]
+	}
+	symbol := currencySymbol(currency)
 	return template.FuncMap{
 		"asset":     Asset,
 		"assetCSS":  AssetCSS,
@@ -43,7 +49,14 @@ func funcMap() template.FuncMap {
 		"dateShort": dateShort,
 		"monthKey":  monthKey,
 		"yearOf":    yearOf,
-		"money":     money,
+		"money":     func(cents *int) string { return money(cents, symbol) },
+		"moneyInt": func(cents int) string {
+			return money(&cents, symbol)
+		},
+		"moneyRate": func(cents *float64) string { return moneyRate(cents, symbol) },
+		"currencySymbol": func() string {
+			return strings.TrimSpace(symbol)
+		},
 		"pounds": func(cents *int) string {
 			if cents == nil {
 				return ""
@@ -89,25 +102,30 @@ func funcMap() template.FuncMap {
 	}
 }
 
-func parsePage(page string) (*template.Template, error) {
+func parsePage(page string, currencies ...string) (*template.Template, error) {
+	currency := "GBP"
+	if len(currencies) > 0 && strings.TrimSpace(currencies[0]) != "" {
+		currency = currencies[0]
+	}
+	key := page + "\x00" + strings.ToUpper(currency)
 	tmplMu.RLock()
-	t, ok := tmplCache[page]
+	t, ok := tmplCache[key]
 	tmplMu.RUnlock()
 	if ok {
 		return t, nil
 	}
-	t, err := template.New("base").Funcs(funcMap()).ParseFS(templateFS, "templates/base.html", "templates/partials/*.html", "templates/"+page)
+	t, err := template.New("base").Funcs(funcMap(currency)).ParseFS(templateFS, "templates/base.html", "templates/partials/*.html", "templates/"+page)
 	if err != nil {
 		return nil, err
 	}
 	tmplMu.Lock()
-	tmplCache[page] = t
+	tmplCache[key] = t
 	tmplMu.Unlock()
 	return t, nil
 }
 
 func (h *Handler) render(w http.ResponseWriter, r *http.Request, page string, p Page) {
-	t, err := parsePage(page)
+	t, err := parsePage(page, h.Config.ShopCurrency)
 	if err != nil {
 		slog.Error("parse template", "page", page, "error", err)
 		http.Error(w, "template error", http.StatusInternalServerError)
@@ -125,16 +143,27 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, page string, p 
 }
 
 func (h *Handler) renderPartial(w http.ResponseWriter, name string, data any) {
-	if partials == nil {
-		t, err := template.New("partials").Funcs(funcMap()).ParseFS(templateFS, "templates/partials/*.html")
+	currency := h.Config.ShopCurrency
+	if strings.TrimSpace(currency) == "" {
+		currency = "GBP"
+	}
+	key := "\x00partials\x00" + strings.ToUpper(currency)
+	tmplMu.RLock()
+	t, ok := tmplCache[key]
+	tmplMu.RUnlock()
+	if !ok {
+		var err error
+		t, err = template.New("partials").Funcs(funcMap(currency)).ParseFS(templateFS, "templates/partials/*.html")
 		if err != nil {
 			http.Error(w, "template error", http.StatusInternalServerError)
 			return
 		}
-		partials = t
+		tmplMu.Lock()
+		tmplCache[key] = t
+		tmplMu.Unlock()
 	}
 	var buf bytes.Buffer
-	if err := partials.ExecuteTemplate(&buf, name, data); err != nil {
+	if err := t.ExecuteTemplate(&buf, name, data); err != nil {
 		slog.Error("execute partial", "name", name, "error", err)
 		http.Error(w, "template error", http.StatusInternalServerError)
 		return
@@ -256,11 +285,35 @@ func yearOf(s string) string {
 	return s
 }
 
-func money(cents *int) string {
+// currencySymbol maps the instance currency code to a display prefix. Unknown
+// codes keep their ISO code as a prefix so the figure is never ambiguous.
+func currencySymbol(code string) string {
+	switch strings.ToUpper(strings.TrimSpace(code)) {
+	case "EUR":
+		return "€"
+	case "USD":
+		return "$"
+	case "GBP", "":
+		return "£"
+	default:
+		return strings.ToUpper(strings.TrimSpace(code)) + " "
+	}
+}
+
+func money(cents *int, symbol string) string {
 	if cents == nil {
 		return ""
 	}
-	return fmt.Sprintf("£%d.%02d", *cents/100, *cents%100)
+	return fmt.Sprintf("%s%d.%02d", symbol, *cents/100, *cents%100)
+}
+
+// moneyRate formats a fractional minor-unit value, such as a derived cost per
+// play, with exactly two decimals.
+func moneyRate(cents *float64, symbol string) string {
+	if cents == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s%.2f", symbol, *cents/100)
 }
 
 func initials(name string) string {

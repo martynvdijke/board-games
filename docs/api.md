@@ -54,6 +54,7 @@ List endpoints take `limit` (1–100, default 24) and `offset` (≥0):
 | GET | `/games` | read | Filters: `q`, `players`, `max_playtime`, `min_weight`, `max_weight`, `category`, `mechanic`, `status`, `sort` |
 | GET | `/games/{id}` | read | Full game, shelf state, setup notes, recent plays |
 | PATCH | `/games/{id}` | write | Partial shelf update; send `null` to clear rating/price |
+| GET | `/pipeline` | read | Acquisition buckets: wishlist, want to play, preordered, for trade, owned-unplayed; `limit` 1–96 per bucket |
 | GET | `/plays` | read | Filters: `game_id`, `year`, pagination |
 | POST | `/plays` | write | Local play with optional players |
 | GET | `/plays/{id}` | read | Play and players |
@@ -107,6 +108,79 @@ curl -X PATCH https://shelf.example.com/api/v1/games/17 \
 
 Ratings use half steps from 1 to 10. `"user_rating": null` clears a rating.
 `setup_notes` stores the private per-game setup guide (up to 5000 characters).
+
+### Acquisition pipeline
+
+```sh
+curl -H "Authorization: Bearer $TOKEN" \
+  "https://shelf.example.com/api/v1/pipeline?limit=12"
+```
+
+The response always contains all five states in this fixed order:
+
+```json
+{
+  "buckets": [
+    { "state": "wishlist", "label": "Wishlist", "count": 14, "games": [] },
+    { "state": "want_to_play", "label": "Want to play", "count": 3, "games": [] },
+    { "state": "preordered", "label": "Preordered", "count": 1, "games": [] },
+    { "state": "for_trade", "label": "For trade", "count": 2, "games": [] },
+    { "state": "unplayed", "label": "Owned, never played", "count": 9, "games": [] }
+  ]
+}
+```
+
+`count` is the total number of matching games and `games` is capped at `limit`
+(1–96, default 24) per bucket. Buckets are derived from the existing
+BoardGameGeek collection flags, so a game can appear in more than one bucket;
+the states are not mutually exclusive. Only the requesting user's games are
+returned.
+
+### Value fields on games
+
+Every game resource (`/games`, `/games/{id}`, `/pipeline` bucket entries, the
+`PATCH` response) includes:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `acquisition_date` | string or null | `YYYY-MM-DD`, or `null` when unset |
+| `price_paid_cents` | integer or null | Price paid in integer minor units (pence/cents), or `null` |
+| `price_per_play_cents` | number or null | `price_paid_cents` divided by recorded play quantity, rounded to 2 decimals |
+| `price_per_hour_cents` | number or null | `price_paid_cents` per hour of recorded table time, rounded to 2 decimals |
+
+The derived metrics are `null` — never `0` — when undefined:
+
+- `price_paid_cents` is integer minor units, not a decimal amount.
+- `price_per_play_cents` divides by recorded play quantity (`plays.quantity`);
+  the BGG `num_plays` counter is not added to the denominator.
+- `price_per_hour_cents` only counts plays that recorded a duration, so it is
+  `null` when no play for that game has one, even if plays exist. In that case
+  `price_per_play_cents` is still present.
+- A game with no recorded price has all cost fields `null` and is excluded from
+  value totals rather than treated as free.
+
+### Collection value in statistics
+
+`GET /stats` adds a `collection_value` object alongside the existing `shelf`
+block:
+
+```json
+{
+  "data": {
+    "collection_value": {
+      "total_paid_cents": 124500,
+      "paid_games": 27,
+      "unplayed_capital_cents": 31200,
+      "median_cost_per_play_cents": 480
+    }
+  }
+}
+```
+
+`total_paid_cents` sums the recorded price of owned games; `paid_games` counts
+owned games with a price; `unplayed_capital_cents` is the recorded spend on
+owned games with no recorded plays; `median_cost_per_play_cents` is `null` when
+no owned game has both a price and plays. All amounts are integer minor units.
 
 ## TRMNL
 

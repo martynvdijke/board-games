@@ -5,34 +5,37 @@ package collection
 import "time"
 
 type GameCard struct {
-	ID              int64
-	BGGID           int
-	Name            string
-	Year            int
-	ThumbnailURL    string
-	ImageURL        string
-	MinPlayers      int
-	MaxPlayers      int
-	MinPlaytime     int
-	MaxPlaytime     int
-	MinAge          int
-	Weight          float64
-	BGGRating       float64
-	BGGRank         int
-	UserRating      *float64
-	Owned           bool
-	Wishlist        bool
-	WantToPlay      bool
-	Preordered      bool
-	ForTrade        bool
-	Favorite        bool
-	BGGNumPlays     int
-	LocalPlays      int
-	TotalPlays      int
-	AddedAt         string
-	AcquisitionDate string
-	IsExpansion     bool
-	Notes           string
+	ID               int64
+	BGGID            int
+	Name             string
+	Year             int
+	ThumbnailURL     string
+	ImageURL         string
+	MinPlayers       int
+	MaxPlayers       int
+	MinPlaytime      int
+	MaxPlaytime      int
+	MinAge           int
+	Weight           float64
+	BGGRating        float64
+	BGGRank          int
+	UserRating       *float64
+	Owned            bool
+	Wishlist         bool
+	WantToPlay       bool
+	Preordered       bool
+	ForTrade         bool
+	Favorite         bool
+	BGGNumPlays      int
+	LocalPlays       int
+	TotalPlays       int
+	AddedAt          string
+	AcquisitionDate  string
+	IsExpansion      bool
+	Notes            string
+	PricePaid        *int     // pence; nil when unset
+	CostPerPlayPence *float64 // nil when undefined (no price or no recorded plays)
+	CostPerHourPence *float64 // nil when undefined (no price or no timed plays)
 }
 
 func (g GameCard) PlayLabel() string {
@@ -218,14 +221,27 @@ func (f Filters) ActiveFilterCount() int {
 }
 
 type ShelfStats struct {
-	Owned            int
-	Unplayed         int
-	PlaysThisYear    int
-	Wishlist         int
-	TotalPlays       int
-	LongestUnplayed  *GameCard
-	LongestWaitDays  int
-	LongestWaitSince string
+	Owned                  int
+	Unplayed               int
+	PlaysThisYear          int
+	Wishlist               int
+	TotalPlays             int
+	LongestUnplayed        *GameCard
+	LongestWaitDays        int
+	LongestWaitSince       string
+	TotalPaidPence         int      // sum of price_paid for owned games that have a price
+	PaidGames              int      // owned games with a price
+	UnplayedCapitalPence   int      // sum of price_paid for owned games with zero recorded plays
+	MedianCostPerPlayPence *float64 // nil when no owned game has both a price and plays
+}
+
+// PipelineBucket is one acquisition state in the pipeline view. States come
+// from the existing user_games flags, so a game can appear in several buckets.
+type PipelineBucket struct {
+	State string // wishlist | want_to_play | preordered | for_trade | unplayed
+	Label string // human label
+	Count int    // total matching games, not just the ones returned
+	Games []GameCard
 }
 
 type Facets struct {

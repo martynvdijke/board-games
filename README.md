@@ -201,6 +201,7 @@ All configuration is environment-based. The complete annotated list lives in
 | `BGG_USER_AGENT` | dev placeholder | Must contain a contact in parentheses in production |
 | `BGG_API_TOKEN` | empty | Application-scoped BGG API token; `_FILE` reads a mounted secret |
 | `BGG_SYNC_INTERVAL` | `6h` | Default schedule for new users |
+| `SHOP_CURRENCY` | `GBP` | Display currency (ISO 4217) for collection value; label only, never a conversion |
 | `DEMO_USER_ENABLED` | `false` | Public demo account; defaults on only for the Play review host |
 | `DEMO_USER_EMAIL` | `demo@theshelf.local` | Demo account email shown to visitors |
 | `DEMO_USER_NAME` | `Shelf Demo` | Demo display name |

@@ -1,0 +1,57 @@
+{{define "content"}}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Acquisition pipeline</p>
+    <h1 class="display display--compact">The pipeline<span class="display-dot">.</span></h1>
+    <p class="lede">Every game in motion, from the wishlist to the table. States come from your BoardGameGeek collection, so a game can sit in more than one bucket.</p>
+  </div>
+</section>
+
+{{if .Data.AllEmpty}}
+<div class="empty-state">
+  <div class="empty-mark" aria-hidden="true"><svg><use href="#i-arrow"/></svg></div>
+  <h3>Nothing in motion yet</h3>
+  <p>Pipeline states come from your BoardGameGeek collection — wishlist, want to play, preordered, for trade and owned-but-unplayed. A sync will fill them in.</p>
+  <a class="button button--primary" href="/settings#sync">Sync BoardGameGeek</a>
+</div>
+{{else}}
+{{$reasons := .Data.TradeReasons}}
+<div class="pipeline">
+  {{range .Data.Buckets}}
+  {{$state := .State}}
+  <section class="pipeline-bucket" aria-labelledby="pipeline-{{.State}}">
+    <div class="pipeline-head">
+      <h2 id="pipeline-{{.State}}" class="section-title">{{.Label}}</h2>
+      <span class="pipeline-count">{{.Count}}</span>
+    </div>
+    {{if .Games}}
+    <div class="game-list">
+      {{range .Games}}
+      <a class="game-row" href="/games/{{.ID}}">
+        <img class="game-row-cover" src="{{.CoverURL}}" alt="Cover of {{.Name}}" loading="lazy" width="56" height="84">
+        <div class="game-row-main">
+          <div class="game-row-title">
+            <h3>{{.Name}}</h3>
+            {{if .Favorite}}<svg class="favorite-mark" aria-label="Favourite"><use href="#i-heart"/></svg>{{end}}
+          </div>
+          <p class="game-row-meta">{{if .Year}}{{.Year}} · {{end}}{{with .PlayerLabel}}{{.}} · {{end}}{{with .TimeLabel}}{{.}}{{end}}{{if .IsExpansion}} · Expansion{{end}}</p>
+          {{if eq $state "for_trade"}}{{with index $reasons .ID}}<p class="game-row-meta">{{.}}</p>{{end}}{{end}}
+        </div>
+        <div class="game-row-stats">
+          {{if .UserRating}}<span class="rating-chip rating-chip--small"><svg><use href="#i-star"/></svg>{{.RatingLabel}}</span>{{end}}
+          <span class="row-plays {{if eq .TotalPlays 0}}is-unplayed{{end}}">{{.PlayLabel}}</span>
+          {{if .BGGRating}}<span class="bgg-rating" title="BoardGameGeek rating">BGG {{printf "%.1f" .BGGRating}}</span>{{end}}
+        </div>
+        <svg class="row-chevron"><use href="#i-chevron"/></svg>
+      </a>
+      {{end}}
+    </div>
+    {{if gt .Count (len .Games)}}<p class="pipeline-more">Showing {{len .Games}} of {{.Count}} games.</p>{{end}}
+    {{else}}
+    <p class="pipeline-empty">Nothing here right now.</p>
+    {{end}}
+  </section>
+  {{end}}
+</div>
+{{end}}
+{{end}}

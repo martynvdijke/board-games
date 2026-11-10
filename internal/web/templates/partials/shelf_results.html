@@ -20,6 +20,7 @@
     <div class="game-row-stats">
       {{if .UserRating}}<span class="rating-chip rating-chip--small"><svg><use href="#i-star"/></svg>{{.RatingLabel}}</span>{{end}}
       <span class="row-plays {{if eq .TotalPlays 0}}is-unplayed{{end}}">{{.PlayLabel}}</span>
+      {{if or .CostPerPlayPence .CostPerHourPence}}<span class="game-row-value">{{if .CostPerPlayPence}}{{moneyRate .CostPerPlayPence}} per play{{end}}{{if and .CostPerPlayPence .CostPerHourPence}} · {{end}}{{if .CostPerHourPence}}{{moneyRate .CostPerHourPence}} per hour{{end}}</span>{{end}}
       {{if .BGGRating}}<span class="bgg-rating" title="BoardGameGeek rating">BGG {{printf "%.1f" .BGGRating}}</span>{{end}}
     </div>
     <svg class="row-chevron"><use href="#i-chevron"/></svg>

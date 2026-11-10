@@ -368,6 +368,54 @@
         }
       }
     },
+    "/pipeline": {
+      "get": {
+        "tags": [
+          "Games"
+        ],
+        "summary": "Acquisition pipeline",
+        "description": "Returns the five acquisition states in a fixed order: wishlist, want_to_play, preordered, for_trade and unplayed (owned, never played). count is the total number of matching games; games is capped at limit per bucket. A game flagged in several states appears in each matching bucket.",
+        "responses": {
+          "200": {
+            "description": "Pipeline buckets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum games returned per bucket.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 96,
+              "default": 24
+            }
+          }
+        ]
+      }
+    },
     "/plays": {
       "get": {
         "tags": [
@@ -587,7 +635,29 @@
                   "type": "object",
                   "properties": {
                     "data": {
-                      "type": "object"
+                      "type": "object",
+                      "properties": {
+                        "collection_value": {
+                          "type": "object",
+                          "properties": {
+                            "total_paid_cents": {
+                              "type": "integer"
+                            },
+                            "paid_games": {
+                              "type": "integer"
+                            },
+                            "unplayed_capital_cents": {
+                              "type": "integer"
+                            },
+                            "median_cost_per_play_cents": {
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            }
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -929,6 +999,68 @@
           },
           "notes": {
             "type": "string"
+          },
+          "acquisition_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "price_paid_cents": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "price_per_play_cents": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "price_per_hour_cents": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      },
+      "PipelineBucket": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "wishlist",
+              "want_to_play",
+              "preordered",
+              "for_trade",
+              "unplayed"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "games": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Game"
+            }
+          }
+        }
+      },
+      "PipelineResponse": {
+        "type": "object",
+        "properties": {
+          "buckets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineBucket"
+            }
           }
         }
       },

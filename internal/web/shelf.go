@@ -45,7 +45,7 @@ func (h *Handler) parseFilters(r *http.Request) collection.Filters {
 		f.Status = ""
 	}
 	switch f.Sort {
-	case "name", "year", "rating", "bgg_rating", "weight", "weight_desc", "added", "plays":
+	case "name", "year", "rating", "bgg_rating", "weight", "weight_desc", "added", "plays", "cost_play", "cost_hour":
 	default:
 		f.Sort = "name"
 	}
@@ -97,6 +97,38 @@ func (h *Handler) overview(w http.ResponseWriter, r *http.Request) {
 	p := h.page(r, "Your shelf", "shelf", "")
 	p.Data = data
 	h.render(w, r, "overview.html", p)
+}
+
+func (h *Handler) pipeline(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := contextWithTimeout(r, 15*time.Second)
+	defer cancel()
+	user := auth.UserFromContext(r.Context())
+	f := h.parseFilters(r)
+	buckets, err := h.Games.Pipeline(ctx, user.ID, 24, f)
+	if err != nil {
+		h.errorPage(w, r, http.StatusInternalServerError, "We couldn't load the pipeline", err)
+		return
+	}
+	total := 0
+	for _, b := range buckets {
+		total += b.Count
+	}
+	// The trade bucket is ranked by the pure ranking function; mirror the same
+	// ranking here to surface each candidate's reason.
+	var tradeReasons map[int64]string
+	for _, b := range buckets {
+		if b.State != "for_trade" || len(b.Games) == 0 {
+			continue
+		}
+		ranked := collection.RankTradeCandidates(b.Games)
+		tradeReasons = make(map[int64]string, len(ranked))
+		for _, c := range ranked {
+			tradeReasons[c.Game.ID] = c.Reason
+		}
+	}
+	p := h.page(r, "Pipeline", "pipeline", "")
+	p.Data = &PipelineData{Buckets: buckets, Total: total, AllEmpty: total == 0, TradeReasons: tradeReasons}
+	h.render(w, r, "pipeline.html", p)
 }
 
 func (h *Handler) gamesPartial(w http.ResponseWriter, r *http.Request) {
