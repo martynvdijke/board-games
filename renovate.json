@@ -21,7 +21,7 @@
     ":ignoreModulesAndTests"
   ],
   "platform": "github",
-  "platformAutomerge": true,
+  "platformAutomerge": false,
   "prCreation": "immediate",
   "prHourlyLimit": 10,
   "rebaseWhen": "conflicted",
