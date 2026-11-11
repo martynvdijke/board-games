@@ -17,15 +17,27 @@ no client-side database.
 - **Shelf of shame, gently.** Unplayed games are counted, filterable, and
   surfaced with how long they have been waiting.
 - **Plays that stay yours.** Log plays with players, scores, winners, duration,
-  location, and notes. Plays imported from BGG are read-only; locally logged
-  plays can be edited or deleted.
-- **Setup guides that stay private.** Keep per-game setup notes and up to 12
-  photos, visible only to you.
+  location, and notes. Mark who was playing a game for the first time, and log
+  the same group again in one click. Plays imported from BGG are read-only;
+  locally logged plays can be edited or deleted.
+- **Setup guides that turn into teach sheets.** Keep per-game setup notes and up
+  to 40 numbered photos with captions, reorder them, and read them as ordered
+  steps when you teach the game. Visible only to you.
+- **How it actually plays.** Logged durations are compared with the box
+  playtime, per game and across the shelf, so "you average 95 minutes, the box
+  says 60–90" is on the game page rather than in your head. Plays BGG reports
+  but you never logged are counted too.
+- **Where you play.** Venues are folded out of the free-text location field, so
+  "The Crown" and "the crown" are one place, and the stats page shows how many
+  plays and games each venue has seen.
 - **BoardGameGeek in, not out.** BGG's public XML API2 is read-only. The Shelf
   imports your public collection, metadata, ratings, and play history, but it
   never writes back. See [BoardGameGeek limits](#boardgamegeek-limits).
 - **One collection, several doors.** Server-rendered web UI, documented REST
   API with personal tokens, and an 800×480 TRMNL feed.
+- **Know what is signed in.** Settings lists every active session with its
+  device, address and last activity, and each API token shows when it was last
+  used — and any of them can be revoked from there.
 - **Made to live on a shelf.** Single-user friendly, multi-user capable, OIDC
   sign-in, one SQLite file, a non-root container, OpenTelemetry, and optional
   Umami analytics.
@@ -113,7 +125,9 @@ curl -H "Authorization: Bearer $TOKEN" https://shelf.example.com/api/v1/games?li
 ```
 
 Full reference: `/api/docs` in the running app, or the OpenAPI JSON at
-`/api/openapi.json`. See also [docs/api.md](docs/api.md).
+`/api/openapi.json`. See also [docs/api.md](docs/api.md). Play creation accepts
+an optional `client_play_id`; retrying the same request with that key returns
+the original play instead of creating a duplicate.
 
 ## TRMNL
 

@@ -91,12 +91,17 @@ curl -X POST https://shelf.example.com/api/v1/plays \
     "location": "The kitchen table",
     "duration_minutes": 55,
     "players": [
-      {"name": "Alex", "score": "42", "is_winner": true},
+      {"name": "Alex", "score": "42", "is_winner": true, "is_first_play": true},
       {"name": "Sam", "score": "38"}
     ],
-    "notes": "Close one."
+    "notes": "Close one.",
+    "client_play_id": "optional-idempotency-key"
   }'
 ```
+
+`client_play_id` is optional and at most 128 characters. Send the same value
+again to retry safely: the API answers `201` with the play created by the first
+request rather than creating a second one.
 
 BGG-imported plays (`origin: "bgg"`) cannot be edited or deleted through the
 API; log a local correction instead.
@@ -268,6 +273,32 @@ block:
 owned games with a price; `unplayed_capital_cents` is the recorded spend on
 owned games with no recorded plays; `median_cost_per_play_cents` is `null` when
 no owned game has both a price and plays. All amounts are integer minor units.
+
+### Venues
+
+`GET /venues` lists the places your plays happen at. A venue is created the
+first time a play is logged with that location; spellings are matched
+case-insensitively and with punctuation folded, so "The Crown" and "the crown"
+share one venue. The spelling first seen is kept for display.
+
+```json
+{
+  "data": {
+    "venues": [
+      {
+        "id": 3,
+        "name": "The Crown",
+        "plays": 14,
+        "distinct_games": 9,
+        "last_played_at": "2026-10-04T19:30:00Z"
+      }
+    ]
+  }
+}
+```
+
+Ordered by play count, busiest first. Only the caller's venues are returned.
+Requires the `read` scope.
 
 ## TRMNL
 

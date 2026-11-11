@@ -119,7 +119,7 @@ flutter test
 flutter run
 ```
 
-The app uses Riverpod 3, `dio`, `flutter_secure_storage`, and
+The app uses Riverpod 3, `package:http`, `flutter_secure_storage`, and
 `shared_preferences`. Source lives under `mobile/lib/src`:
 
 ```text
