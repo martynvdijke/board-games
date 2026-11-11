@@ -189,6 +189,20 @@ function initFilters(): void {
   })
 }
 
+// initPlaySubmitGuard stops a double click from sending the same play twice.
+// The server-side client_id is the real protection; this only improves the
+// browser experience and is harmless when JavaScript is unavailable.
+function initPlaySubmitGuard(): void {
+  const form = document.querySelector<HTMLFormElement>('[data-play-form]')
+  if (!form) return
+  form.addEventListener('submit', () => {
+    if (!form.reportValidity()) return
+    const submitter = form.querySelector<HTMLButtonElement>('button[type="submit"]')
+    if (!submitter) return
+    window.setTimeout(() => { submitter.disabled = true }, 0)
+  })
+}
+
 function initPlayerRows(): void {
   const container = document.querySelector<HTMLElement>('[data-player-rows]')
   const add = document.querySelector<HTMLButtonElement>('[data-add-player]')
@@ -230,6 +244,7 @@ function initPlayerRows(): void {
       <label class="field"><span class="sr-only">Player name</span><input type="text" name="player_name" placeholder="Player name" autocomplete="off"></label>
       <label class="field field--score"><span class="sr-only">Score</span><input type="text" name="player_score" placeholder="Score"></label>
       <label class="check check--inline"><input type="checkbox" name="player_winner" value=""><span>Won</span></label>
+      <label class="check check--inline"><input type="checkbox" name="player_first" value=""><span>First time</span></label>
       <button class="icon-button icon-button--danger" type="button" data-remove-player aria-label="Remove player"><svg><use href="#i-close"/></svg></button>`
     const input = nameInput(row)
     if (input) input.value = name
@@ -368,5 +383,6 @@ export function init(): void {
   initCopy()
   initFilters()
   initPlayerRows()
+  initPlaySubmitGuard()
   initSyncStatus()
 }

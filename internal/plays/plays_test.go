@@ -200,3 +200,41 @@ func contains(s, sub string) bool {
 	}
 	return false
 }
+
+func TestCreateIsIdempotentWithClientID(t *testing.T) {
+	repo, database, userID, gameID := setupPlays(t)
+	ctx := context.Background()
+	in := Input{GameID: gameID, PlayedAt: "2026-02-03", Quantity: 1, ClientID: "client-abc",
+		Players: []Player{{Name: "Alex", Score: "10"}}}
+	first, err := repo.Create(ctx, userID, in, "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := repo.Create(ctx, userID, in, "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.ID != second.ID {
+		t.Fatalf("retry created a different play: %q vs %q", first.ID, second.ID)
+	}
+	var playsCount, playersCount int
+	if err := database.QueryRow(`SELECT COUNT(*) FROM plays WHERE user_id=?`, userID).Scan(&playsCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.QueryRow(`SELECT COUNT(*) FROM play_players WHERE play_id=?`, first.ID).Scan(&playersCount); err != nil {
+		t.Fatal(err)
+	}
+	if playsCount != 1 || playersCount != 1 {
+		t.Fatalf("expected one play with one player, got %d plays and %d players", playsCount, playersCount)
+	}
+	// A different key is a distinct play.
+	if _, err := repo.Create(ctx, userID, Input{GameID: gameID, PlayedAt: "2026-02-03", Quantity: 1, ClientID: "client-other"}, "UTC"); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.QueryRow(`SELECT COUNT(*) FROM plays WHERE user_id=?`, userID).Scan(&playsCount); err != nil {
+		t.Fatal(err)
+	}
+	if playsCount != 2 {
+		t.Fatalf("expected a second play for a different client id, got %d", playsCount)
+	}
+}

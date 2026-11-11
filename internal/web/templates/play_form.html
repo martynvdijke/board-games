@@ -13,6 +13,7 @@
 
   <form class="panel form-panel" method="post" action="{{if $d.Editing}}/plays/{{$d.Play.ID}}{{else}}/plays{{end}}" data-play-form data-play-mode="{{if $d.Editing}}edit{{else}}create{{end}}">
     <input type="hidden" name="csrf_token" value="{{.CSRF}}">
+    <input type="hidden" name="client_id" value="{{$d.ClientID}}">
     {{if .Error}}<div class="callout callout--danger" role="alert">{{.Error}}</div>{{end}}
 
     <div class="field-grid">
@@ -23,7 +24,12 @@
         </select>
       </label>
       <label class="field"><span>Date played</span><input type="date" name="played_at" value="{{$d.Attempt.PlayedAt}}" max="{{$d.Today}}" required></label>
-      <label class="field"><span>Location</span><input type="text" name="location" value="{{$d.Attempt.Location}}" placeholder="Home, club, convention…"></label>
+      <div class="field">
+        <label class="field-label" for="play-location">Location</label>
+        <input id="play-location" type="text" name="location" value="{{$d.Attempt.Location}}" list="known-venues" placeholder="Home, club, convention…" aria-describedby="play-location-hint">
+        <p class="field-hint" id="play-location-hint">{{if $d.Venues}}Venues you've played at before come up as you type.{{else}}Where you sat down: home, a club, a convention.{{end}}</p>
+        {{if $d.Venues}}<datalist id="known-venues">{{range $d.Venues}}<option value="{{.Name}}"></option>{{end}}</datalist>{{end}}
+      </div>
       <label class="field"><span>Duration (minutes)</span><input type="number" name="duration" min="0" max="1440" value="{{if $d.Attempt.Duration}}{{$d.Attempt.Duration}}{{end}}" placeholder="Optional"></label>
       <label class="field"><span>Copies / rounds</span><input type="number" name="quantity" min="1" max="50" value="{{if $d.Attempt.Quantity}}{{$d.Attempt.Quantity}}{{else}}1{{end}}"></label>
     </div>
@@ -50,11 +56,12 @@
           <label class="field"><span class="sr-only">Player name</span><input type="text" name="player_name" value="{{$p.Name}}" placeholder="Player name" autocomplete="off"></label>
           <label class="field field--score"><span class="sr-only">Score</span><input type="text" name="player_score" value="{{$p.Score}}" placeholder="Score"></label>
           <label class="check check--inline"><input type="checkbox" name="player_winner" value="{{$i}}" {{if $p.IsWinner}}checked{{end}}><span>Won</span></label>
+          <label class="check check--inline"><input type="checkbox" name="player_first" value="{{$i}}" {{if $p.IsFirst}}checked{{end}}><span>First play</span></label>
           <button class="icon-button icon-button--danger" type="button" data-remove-player aria-label="Remove player"><svg><use href="#i-close"/></svg></button>
         </div>
         {{end}}
       </div>
-      <p class="field-hint">Names are enough. Scores and winners are optional.</p>
+      <p class="field-hint">Names are enough. Scores and winners are optional — tick First play for anyone trying this game for the first time.</p>
     </fieldset>
 
     <label class="field"><span>Notes</span><textarea name="notes" rows="4" placeholder="What happened? House rules, best moment, who swore they'd never play again…">{{$d.Attempt.Notes}}</textarea></label>

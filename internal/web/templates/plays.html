@@ -43,9 +43,10 @@
             {{if .Location}}{{.Location}}{{else}}Played{{end}}{{if .Duration}} · {{.Duration}} min{{end}}{{if .Players}} · {{len .Players}} players{{end}}
           </p>
           {{if .Players}}
-          <p class="play-players">{{range $i, $p := .Players}}{{if $i}}<span class="dot">·</span>{{end}}<span class="{{if $p.IsWinner}}is-winner{{end}}">{{$p.Name}}{{if $p.IsWinner}} <svg><use href="#i-star"/></svg>{{end}}{{if $p.Score}} <small>{{$p.Score}}</small>{{end}}</span>{{end}}</p>
+          <p class="play-players">{{range $i, $p := .Players}}{{if $i}}<span class="dot">·</span>{{end}}<span class="{{if $p.IsWinner}}is-winner{{end}}">{{$p.Name}}{{if $p.IsWinner}} <svg><use href="#i-star"/></svg>{{end}}{{if $p.IsFirst}} <span class="status-badge is-first">First play</span>{{end}}{{if $p.Score}} <small>{{$p.Score}}</small>{{end}}</span>{{end}}</p>
           {{end}}
           {{if .Notes}}<p class="play-notes">{{.Notes}}</p>{{end}}
+          <p class="play-repeat"><a class="text-link text-link--small" href="/plays/new?from={{.ID}}"><svg aria-hidden="true"><use href="#i-sync"/></svg> Log again with this group</a></p>
         </div>
         {{if eq .Origin "local"}}
         <div class="play-actions">

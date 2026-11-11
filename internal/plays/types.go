@@ -27,6 +27,7 @@ type Statistics struct {
 	Monthly       []MonthCount
 	TotalPlays    int
 	TotalSessions int
+	FirstPlays    int
 	TopGames      []CountItem
 	Leaderboard   []LeaderEntry
 	WeightBands   []BandCount

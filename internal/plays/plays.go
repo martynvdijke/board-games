@@ -55,11 +55,21 @@ type Input struct {
 	Quantity int
 	Notes    string
 	Players  []Player
+	// ClientID is an optional idempotency key supplied by the caller. When
+	// set, a repeated create for the same user returns the original play.
+	ClientID string
+}
+
+// VenueResolver normalises a free-text location inside the caller's
+// transaction. internal/venues.Repo implements it.
+type VenueResolver interface {
+	ResolveTx(ctx context.Context, tx *sql.Tx, userID, raw string) (int64, string, error)
 }
 
 type Repo struct {
 	DB       *sql.DB
 	notifier notify.Notifier
+	venues   VenueResolver
 }
 
 func NewRepo(database *sql.DB) *Repo { return &Repo{DB: database} }
@@ -67,6 +77,27 @@ func NewRepo(database *sql.DB) *Repo { return &Repo{DB: database} }
 // SetNotifier installs an optional notifier. A nil notifier disables
 // notifications. Call it once during startup, before the repo serves requests.
 func (r *Repo) SetNotifier(n notify.Notifier) { r.notifier = n }
+
+// SetVenueResolver installs venue normalisation for local play writes. Without
+// one, locations are stored as free text and location_id stays NULL.
+func (r *Repo) SetVenueResolver(v VenueResolver) { r.venues = v }
+
+// resolveLocation resolves a free-text location inside tx, returning the
+// canonical display name and the venue id (nil when there is no location).
+func (r *Repo) resolveLocation(ctx context.Context, tx *sql.Tx, userID, raw string) (string, any, error) {
+	location := strings.TrimSpace(raw)
+	if location == "" || r.venues == nil {
+		return location, nil, nil
+	}
+	id, name, err := r.venues.ResolveTx(ctx, tx, userID, location)
+	if err != nil {
+		return "", nil, err
+	}
+	if id == 0 {
+		return location, nil, nil
+	}
+	return name, id, nil
+}
 
 // Validate enforces the same rules for web and API writes.
 func (r *Repo) Validate(ctx context.Context, userID string, in Input, timezone string) error {
@@ -104,6 +135,9 @@ func (r *Repo) Validate(ctx context.Context, userID string, in Input, timezone s
 	if len(in.Players) > 20 {
 		return fmt.Errorf("%w: at most 20 players are supported", ErrInvalid)
 	}
+	if len(strings.TrimSpace(in.ClientID)) > 128 {
+		return fmt.Errorf("%w: the client id is too long", ErrInvalid)
+	}
 	seen := map[string]bool{}
 	for _, p := range in.Players {
 		name := strings.TrimSpace(p.Name)
@@ -130,12 +164,28 @@ func (r *Repo) Create(ctx context.Context, userID string, in Input, timezone str
 	if err := r.Validate(ctx, userID, in, timezone); err != nil {
 		return nil, err
 	}
+	clientID := strings.TrimSpace(in.ClientID)
 	id := newID()
 	now := db.Now()
+	reused := false
 	err := db.WithTx(ctx, r.DB, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `INSERT INTO plays(id,user_id,game_id,played_at,location,duration_minutes,quantity,notes,origin,created_at,updated_at)
-			VALUES(?,?,?,?,?,?,?,?,'local',?,?)`, id, userID, in.GameID, in.PlayedAt, strings.TrimSpace(in.Location), nullableInt(in.Duration), in.Quantity, strings.TrimSpace(in.Notes), now, now)
+		location, locationID, err := r.resolveLocation(ctx, tx, userID, in.Location)
 		if err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, `INSERT INTO plays(id,user_id,game_id,played_at,location,location_id,duration_minutes,quantity,notes,origin,client_id,created_at,updated_at)
+			VALUES(?,?,?,?,?,?,?,?,?,'local',?,?,?)`, id, userID, in.GameID, in.PlayedAt, location, locationID, nullableInt(in.Duration), in.Quantity, strings.TrimSpace(in.Notes), nullableText(clientID), now, now)
+		if err != nil {
+			// A repeated submission with the same idempotency key resolves to
+			// the play it already created instead of failing.
+			if clientID != "" {
+				var prior string
+				if qerr := tx.QueryRowContext(ctx, `SELECT id FROM plays WHERE user_id=? AND client_id=?`, userID, clientID).Scan(&prior); qerr == nil {
+					id = prior
+					reused = true
+					return nil
+				}
+			}
 			return err
 		}
 		return insertPlayers(ctx, tx, id, in.Players)
@@ -143,11 +193,14 @@ func (r *Repo) Create(ctx context.Context, userID string, in Input, timezone str
 	if err != nil {
 		return nil, err
 	}
-	observability.RecordPlayCreated(ctx, "local")
 	p, err := r.Get(ctx, userID, id)
 	if err != nil {
 		return nil, err
 	}
+	if reused {
+		return p, nil
+	}
+	observability.RecordPlayCreated(ctx, "local")
 	r.notifyPlay(p)
 	return p, nil
 }
@@ -201,6 +254,13 @@ func playNotification(ctx context.Context, database *sql.DB, p *Play) (string, s
 
 func nullableInt(v int) any {
 	if v <= 0 {
+		return nil
+	}
+	return v
+}
+
+func nullableText(v string) any {
+	if v == "" {
 		return nil
 	}
 	return v
@@ -284,8 +344,12 @@ func (r *Repo) Update(ctx context.Context, userID, id string, in Input, timezone
 	}
 	now := db.Now()
 	err := db.WithTx(ctx, r.DB, func(tx *sql.Tx) error {
-		res, err := tx.ExecContext(ctx, `UPDATE plays SET game_id=?,played_at=?,location=?,duration_minutes=?,quantity=?,notes=?,updated_at=?
-			WHERE id=? AND user_id=? AND origin='local'`, in.GameID, in.PlayedAt, strings.TrimSpace(in.Location), nullableInt(in.Duration), in.Quantity, strings.TrimSpace(in.Notes), now, id, userID)
+		location, locationID, err := r.resolveLocation(ctx, tx, userID, in.Location)
+		if err != nil {
+			return err
+		}
+		res, err := tx.ExecContext(ctx, `UPDATE plays SET game_id=?,played_at=?,location=?,location_id=?,duration_minutes=?,quantity=?,notes=?,updated_at=?
+			WHERE id=? AND user_id=? AND origin='local'`, in.GameID, in.PlayedAt, location, locationID, nullableInt(in.Duration), in.Quantity, strings.TrimSpace(in.Notes), now, id, userID)
 		if err != nil {
 			return err
 		}
@@ -456,6 +520,8 @@ func (r *Repo) Stats(ctx context.Context, userID string, year int) (Statistics, 
 	}
 	rows.Close()
 	_ = r.DB.QueryRowContext(ctx, `SELECT COALESCE(SUM(quantity),0), COUNT(*) FROM plays WHERE user_id=?`, userID).Scan(&s.TotalPlays, &s.TotalSessions)
+	_ = r.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM play_players pp JOIN plays p ON p.id=pp.play_id
+		WHERE p.user_id=? AND pp.is_first_play=1 AND substr(p.played_at,1,4)=?`, userID, fmt.Sprintf("%04d", year)).Scan(&s.FirstPlays)
 
 	rows, err = r.DB.QueryContext(ctx, `SELECT g.name, COALESCE(SUM(p.quantity),0) FROM plays p JOIN games g ON g.id=p.game_id
 		WHERE p.user_id=? GROUP BY p.game_id ORDER BY 2 DESC, g.name LIMIT 8`, userID)
@@ -533,6 +599,9 @@ func (r *Repo) UpsertImported(ctx context.Context, userID string, p Play) (bool,
 // UpsertImportedTx imports a BGG play inside the caller's transaction. It is
 // idempotent on (user_id, bgg_play_id) so a failed page can be retried safely.
 func (r *Repo) UpsertImportedTx(ctx context.Context, tx *sql.Tx, userID string, p Play) (bool, error) {
+	// Imported BGG plays keep their free-text location and stay unlinked
+	// (location_id NULL): BGG is read-only and its location values are not
+	// edited into venues. Local writes resolve venues via resolveLocation.
 	var existing string
 	err := tx.QueryRowContext(ctx, `SELECT id FROM plays WHERE user_id=? AND bgg_play_id=?`, userID, *p.BGGPlayID).Scan(&existing)
 	switch {
