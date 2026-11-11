@@ -153,6 +153,7 @@ type SetupImage struct {
 	URL         string // "/media/setup/" + ID
 	Caption     string
 	CreatedAt   string
+	Step        int    // 1-based position in the ordered guide
 	Filename    string // storage filename, not rendered
 	ContentType string // not rendered
 }

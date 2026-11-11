@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -40,6 +41,26 @@ func (h *Handler) updateSetup(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := r.ParseForm(); err != nil {
 		h.errorPage(w, r, http.StatusBadRequest, "That form couldn't be read", err)
+		return
+	}
+	// Reordering shares the setup route because the ordered guide is part of
+	// the setup guide; `op` distinguishes a move from a notes save.
+	if op := r.PostForm.Get("op"); op == "move_up" || op == "move_down" {
+		delta := 1
+		if op == "move_up" {
+			delta = -1
+		}
+		moved, err := h.Games.MoveSetupImage(ctx, user.ID, id, r.PostForm.Get("image_id"), delta)
+		switch {
+		case errors.Is(err, collection.ErrNotFound):
+			h.errorPage(w, r, http.StatusNotFound, "That photo isn't here", nil)
+		case err != nil:
+			h.flashRedirect(w, r, "/games/"+strconv.FormatInt(id, 10)+"#setup", "That photo couldn't be moved", "error")
+		case !moved:
+			h.flashRedirect(w, r, "/games/"+strconv.FormatInt(id, 10)+"#setup", "That photo is already at the edge of the guide", "error")
+		default:
+			h.flashRedirect(w, r, "/games/"+strconv.FormatInt(id, 10)+"#setup", "Setup guide reordered", "success")
+		}
 		return
 	}
 	notes := r.PostForm.Get("setup_notes")
@@ -118,7 +139,7 @@ func (h *Handler) uploadSetupImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if count >= collection.MaxSetupImages {
-		fail("A setup guide can hold up to 12 photos")
+		fail(fmt.Sprintf("A setup guide can hold up to %d photos", collection.MaxSetupImages))
 		return
 	}
 
