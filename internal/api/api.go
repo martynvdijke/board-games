@@ -23,6 +23,7 @@ import (
 	"boardgames/internal/auth"
 	"boardgames/internal/collection"
 	"boardgames/internal/config"
+	"boardgames/internal/loans"
 	"boardgames/internal/observability"
 	"boardgames/internal/plays"
 	"boardgames/internal/trmnl"
@@ -37,6 +38,7 @@ type Handler struct {
 	Account *account.Service
 	Games   *collection.Repo
 	Plays   *plays.Repo
+	Loans   *loans.Repo
 	Sync    *collection.SyncService
 	TRMNL   *trmnl.Service
 	DB      *sql.DB
@@ -68,6 +70,10 @@ func (h *Handler) Routes() http.Handler {
 	v1.Handle("GET /plays/{id}", auth.RequireScope("read", http.HandlerFunc(h.getPlay)))
 	v1.Handle("PATCH /plays/{id}", auth.RequireScope("write", http.HandlerFunc(h.patchPlay)))
 	v1.Handle("DELETE /plays/{id}", auth.RequireScope("write", http.HandlerFunc(h.deletePlay)))
+	v1.Handle("GET /loans", auth.RequireScope("read", http.HandlerFunc(h.listLoans)))
+	v1.Handle("POST /loans", auth.RequireScope("write", http.HandlerFunc(h.createLoan)))
+	v1.Handle("GET /loans/{id}", auth.RequireScope("read", http.HandlerFunc(h.getLoan)))
+	v1.Handle("POST /loans/{id}/return", auth.RequireScope("write", http.HandlerFunc(h.returnLoan)))
 	v1.Handle("GET /stats", auth.RequireScope("read", http.HandlerFunc(h.stats)))
 	v1.Handle("GET /sync", auth.RequireScope("read", http.HandlerFunc(h.syncStatus)))
 	v1.Handle("POST /sync", auth.RequireScope("write", http.HandlerFunc(h.startSync)))
@@ -515,6 +521,233 @@ func (h *Handler) deletePlay(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// loanGameJSON is the game reference embedded in a loan. Only the fields a
+// client needs to show the borrowed title are included.
+type loanGameJSON struct {
+	ID           int64  `json:"id"`
+	BGGID        int    `json:"bgg_id"`
+	Name         string `json:"name"`
+	ThumbnailURL string `json:"thumbnail_url"`
+}
+
+// loanJSON is the wire form of a loan. Dates are calendar days (YYYY-MM-DD)
+// and stay as empty strings until set; every field is always present so
+// clients see a stable schema.
+type loanJSON struct {
+	ID           int64        `json:"id"`
+	Game         loanGameJSON `json:"game"`
+	Borrower     string       `json:"borrower"`
+	Contact      string       `json:"contact"`
+	LentAt       string       `json:"lent_at"`
+	DueAt        string       `json:"due_at"`
+	ReturnedAt   string       `json:"returned_at"`
+	Notes        string       `json:"notes"`
+	ClosedReason string       `json:"closed_reason"`
+	Overdue      bool         `json:"overdue"`
+	DaysOut      int          `json:"days_out"`
+	DaysOverdue  int          `json:"days_overdue"`
+	NotifiedAt   string       `json:"notified_at"`
+}
+
+func (h *Handler) loanJSON(l loans.Loan) loanJSON {
+	out := loanJSON{
+		ID: l.ID, Borrower: l.Borrower, Contact: l.Contact, LentAt: l.LentAt, DueAt: l.DueAt,
+		ReturnedAt: l.ReturnedAt, Notes: l.Notes, ClosedReason: l.ClosedReason,
+		Overdue: l.Overdue, DaysOut: l.DaysOut, DaysOverdue: l.DaysOverdue, NotifiedAt: l.NotifiedAt,
+		Game: loanGameJSON{ID: l.GameID, BGGID: l.BGGID, Name: l.GameName},
+	}
+	if l.ThumbnailURL != "" {
+		out.Game.ThumbnailURL = h.absolute("/media/bgg/" + strconv.Itoa(l.BGGID) + ".jpg")
+	}
+	return out
+}
+
+// listLoans returns open loans by default, closed history on request, or both
+// with open first. limit bounds only the closed section, which is history; the
+// open section is always short because a game can be out at most once.
+func (h *Handler) listLoans(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	user := auth.UserFromContext(r.Context())
+	q := r.URL.Query()
+	status := strings.TrimSpace(q.Get("status"))
+	if status == "" {
+		status = "open"
+	}
+	if status != "open" && status != "closed" && status != "all" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "The status filter must be open, closed, or all.",
+			map[string]string{"status": "must be open, closed, or all"})
+		return
+	}
+	// limit is 1-100 with 24 as the default. Numeric values outside the range
+	// are clamped rather than rejected, because a client asking for "more" is
+	// not making a mistake; non-numeric values are still refused.
+	limit := 24
+	if raw := strings.TrimSpace(q.Get("limit")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_request", "The limit must be a number.",
+				map[string]string{"limit": "must be a number"})
+			return
+		}
+		switch {
+		case n < 1:
+			limit = 1
+		case n > 100:
+			limit = 100
+		default:
+			limit = n
+		}
+	}
+	out := make([]loanJSON, 0)
+	if status == "open" || status == "all" {
+		open, err := h.Loans.Open(ctx, user.ID)
+		if err != nil {
+			serverError(w, "list open loans", err)
+			return
+		}
+		for _, l := range open {
+			out = append(out, h.loanJSON(l))
+		}
+	}
+	if status == "closed" || status == "all" {
+		closed, err := h.Loans.Closed(ctx, user.ID, limit)
+		if err != nil {
+			serverError(w, "list closed loans", err)
+			return
+		}
+		for _, l := range closed {
+			out = append(out, h.loanJSON(l))
+		}
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, map[string]any{"loans": out})
+}
+
+type loanCreateJSON struct {
+	GameID   int64  `json:"game_id"`
+	Borrower string `json:"borrower"`
+	Contact  string `json:"contact"`
+	LentAt   string `json:"lent_at"`
+	DueAt    string `json:"due_at"`
+	Notes    string `json:"notes"`
+}
+
+func (h *Handler) createLoan(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	user := auth.UserFromContext(r.Context())
+	var body loanCreateJSON
+	if err := decodeJSON(w, r, &body); err != nil {
+		return
+	}
+	loan, err := h.Loans.Lend(ctx, user.ID, loans.NewLoan{GameID: body.GameID, Borrower: body.Borrower,
+		Contact: body.Contact, LentAt: body.LentAt, DueAt: body.DueAt, Notes: body.Notes})
+	if err != nil {
+		h.loanError(ctx, w, user.ID, err, body.GameID)
+		return
+	}
+	w.Header().Set("Location", "/api/v1/loans/"+strconv.FormatInt(loan.ID, 10))
+	writeJSON(w, http.StatusCreated, map[string]any{"data": h.loanJSON(*loan)})
+}
+
+func (h *Handler) getLoan(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	user := auth.UserFromContext(r.Context())
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "not_found", "Loan not found.", nil)
+		return
+	}
+	loan, err := h.Loans.Get(ctx, user.ID, id)
+	if err != nil {
+		h.loanError(ctx, w, user.ID, err, 0)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": h.loanJSON(*loan)})
+}
+
+type loanReturnJSON struct {
+	ReturnedAt string `json:"returned_at"`
+}
+
+func (h *Handler) returnLoan(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	user := auth.UserFromContext(r.Context())
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "not_found", "Loan not found.", nil)
+		return
+	}
+	var body loanReturnJSON
+	if err := decodeOptionalJSON(w, r, &body); err != nil {
+		return
+	}
+	loan, err := h.Loans.Return(ctx, user.ID, id, body.ReturnedAt)
+	if err != nil {
+		h.loanError(ctx, w, user.ID, err, 0)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": h.loanJSON(*loan)})
+}
+
+// loanError maps the loans package sentinels onto the shared envelope. The
+// conflict message names the game when the open loan is still readable, which
+// is the one extra lookup paid only on the failure path.
+func (h *Handler) loanError(ctx context.Context, w http.ResponseWriter, userID string, err error, gameID int64) {
+	switch {
+	case errors.Is(err, loans.ErrOpenLoanExists):
+		message := "That game already has an open loan. Mark it returned first."
+		existing, lookupErr := h.Loans.OpenByGame(ctx, userID, gameID)
+		if lookupErr == nil && existing != nil && existing.GameName != "" {
+			message = fmt.Sprintf("%s already has an open loan to %s. Mark it returned first.", existing.GameName, existing.Borrower)
+		}
+		writeError(w, http.StatusConflict, "conflict", message, nil)
+	case errors.Is(err, loans.ErrNotOwned):
+		message := "The game must be on your owned shelf."
+		if gameID <= 0 {
+			message = "A game_id is required."
+		}
+		writeError(w, http.StatusUnprocessableEntity, "invalid_request", message,
+			map[string]string{"game_id": "must be a game you own"})
+	case errors.Is(err, loans.ErrInvalid):
+		message := loanMessage(err)
+		writeError(w, http.StatusUnprocessableEntity, "invalid_request", message, loanFields(message))
+	case errors.Is(err, loans.ErrNotFound):
+		writeError(w, http.StatusNotFound, "not_found", "Loan not found.", nil)
+	default:
+		serverError(w, "loan", err)
+	}
+}
+
+// loanMessage strips the package sentinel prefix so the envelope reads as a
+// sentence about the request rather than an internal error string.
+func loanMessage(err error) string {
+	msg := err.Error()
+	for _, prefix := range []string{"loans: invalid loan: ", "loans: "} {
+		if strings.HasPrefix(msg, prefix) {
+			return strings.TrimPrefix(msg, prefix)
+		}
+	}
+	return msg
+}
+
+// loanFields attributes a validation message to the field that caused it, so
+// clients can highlight the right input.
+func loanFields(message string) map[string]string {
+	for _, pair := range []struct{ needle, field string }{
+		{"borrower", "borrower"}, {"contact", "contact"}, {"notes", "notes"},
+		{"lend date", "lent_at"}, {"due date", "due_at"}, {"return date", "returned_at"},
+	} {
+		if strings.Contains(message, pair.needle) {
+			return map[string]string{pair.field: message}
+		}
+	}
+	return nil
+}
+
 func (h *Handler) stats(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
@@ -627,6 +860,15 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 		return err
 	}
 	return nil
+}
+
+// decodeOptionalJSON decodes a body only when the client sent one, so an
+// endpoint with an optional body does not reject an absent body as bad JSON.
+func decodeOptionalJSON(w http.ResponseWriter, r *http.Request, dst any) error {
+	if r.Body == nil || r.Body == http.NoBody || r.ContentLength == 0 {
+		return nil
+	}
+	return decodeJSON(w, r, dst)
 }
 
 func validationError(w http.ResponseWriter, err error) {

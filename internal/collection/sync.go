@@ -31,6 +31,11 @@ type SyncService struct {
 	Config   *config.Config
 	notifier notify.Notifier
 	startMu  sync.Mutex
+
+	// OnCollectionChanged runs after a sync has replaced the user's collection.
+	// main wires it to loans.Repo.CloseForOwnershipChange so an open loan cannot
+	// outlive ownership. It is optional and never fails the sync.
+	OnCollectionChanged func(ctx context.Context, userID string) error
 }
 
 func NewSyncService(database *sql.DB, client *bgg.Client, games *Repo, playRepo *plays.Repo, cfg *config.Config) *SyncService {
@@ -157,6 +162,7 @@ func (s *SyncService) run(ctx context.Context, userID, runID string) {
 	}
 	span.SetAttributes(attribute.Int("sync.collection_count", collectionCount))
 	slog.Info("bgg collection synced", "user", userID, "games", collectionCount)
+	s.collectionChanged(ctx, userID)
 
 	s.phase(runID, "things", collectionCount, 0, 0)
 	var thingsCount int
@@ -187,6 +193,18 @@ func (s *SyncService) run(ctx context.Context, userID, runID string) {
 		return
 	}
 	s.finish(runID, "success", "")
+}
+
+// collectionChanged tells the optional observer that the collection was
+// replaced, so loans for games that left the shelf can be closed. Failures are
+// logged only: reconciliation must never fail an otherwise good sync.
+func (s *SyncService) collectionChanged(ctx context.Context, userID string) {
+	if s.OnCollectionChanged == nil {
+		return
+	}
+	if err := s.OnCollectionChanged(ctx, userID); err != nil {
+		slog.Warn("reconcile loans after ownership change", "user", userID, "error", err)
+	}
 }
 
 func (s *SyncService) syncCollection(ctx context.Context, userID, username string) (int, error) {

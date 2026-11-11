@@ -411,6 +411,45 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
 .pipeline-empty { color: var(--muted); font-size: .85rem; margin: .2rem 0 0; }
 .pipeline-more { color: var(--muted); font-size: .75rem; margin: .5rem 0 0; }
 
+/* ── Loans ─────────────────────────────────────────────────────────────── */
+.loans-section { margin-bottom: 2.5rem; }
+.loans-head { display: flex; align-items: baseline; gap: .7rem; margin-bottom: .4rem; }
+.loan-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.loan-row { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 1rem; align-items: center; padding: .85rem .3rem; border-bottom: 1px solid var(--line); transition: background .15s ease; }
+.loan-row:hover { background: color-mix(in srgb, var(--surface) 60%, transparent); }
+.loan-cover img { width: 48px; height: 72px; object-fit: cover; border-radius: 3px 6px 6px 3px; box-shadow: var(--shadow-sm); }
+.loan-main { min-width: 0; }
+.loan-title { font-family: var(--font-display); font-size: 1.15rem; font-weight: 520; line-height: 1.2; margin: 0; }
+.loan-title a:hover { color: var(--primary); }
+.loan-meta { margin: .15rem 0 0; color: var(--muted); font-size: .78rem; font-variant-numeric: tabular-nums; }
+.loan-meta strong { color: var(--ink-soft); font-weight: 600; }
+.loan-tags { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .6rem; margin: .45rem 0 0; }
+.loan-due { display: inline-flex; align-items: center; gap: .3rem; padding: .1rem .5rem; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: .72rem; font-variant-numeric: tabular-nums; }
+.loan-due svg { width: .8rem; height: .8rem; }
+.loan-due.is-overdue { background: var(--brass-soft); border-color: color-mix(in srgb, var(--brass) 45%, var(--line)); color: var(--ink); }
+.loan-due.is-overdue svg { color: var(--brass); }
+.loan-due--none { border-style: dashed; }
+.loan-contact { color: var(--muted); font-size: .72rem; overflow-wrap: anywhere; }
+.loan-notes { margin: .4rem 0 0; color: var(--muted); font-size: .8rem; max-width: 68ch; overflow-wrap: anywhere; }
+.loan-return { justify-self: end; }
+.loan-return .button { white-space: nowrap; }
+.loan-history { margin-top: 2.5rem; }
+.loan-history-name { color: var(--ink-soft); font-weight: 550; }
+.loan-history-name:hover { color: var(--primary); }
+.loan-panel { margin-bottom: 1.5rem; scroll-margin-top: calc(var(--header-h) + 1.5rem); }
+.loan-out { display: flex; flex-direction: column; align-items: flex-start; gap: .4rem; }
+.loan-out .loan-return { margin-top: .5rem; }
+.loan-out-line { margin: 0; font-family: var(--font-display); font-size: 1.35rem; font-weight: 480; letter-spacing: -.01em; }
+.loan-form { gap: .8rem; }
+.loan-form .field-hint { margin: 0; }
+.status-badge.is-out { color: var(--ink); border-color: color-mix(in srgb, var(--brass) 45%, var(--line)); background: var(--brass-soft); }
+.status-badge.is-out svg { color: var(--brass); }
+.loan-badge { position: absolute; left: .55rem; bottom: .55rem; z-index: 2; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--surface) 94%, transparent); color: var(--brass); border: 1px solid color-mix(in srgb, var(--brass) 40%, var(--line)); box-shadow: var(--shadow-sm); }
+.loan-badge svg { width: .95rem; height: .95rem; }
+.game-row-loan { display: flex; align-items: center; gap: .35rem; margin: .15rem 0 0; color: var(--muted); font-size: .75rem; }
+.game-row-loan svg { width: .85rem; height: .85rem; color: var(--brass); }
+.game-row-loan strong { color: var(--ink-soft); font-weight: 600; }
+
 /* ── Empty / pagination ────────────────────────────────────────────────── */
 .empty-state { text-align: center; padding: 3.5rem 1.5rem; border: 1px dashed var(--line-strong); border-radius: var(--radius-lg); background: color-mix(in srgb, var(--surface) 45%, transparent); }
 .empty-state h3 { font-family: var(--font-display); font-size: 1.7rem; font-weight: 480; margin: 1rem 0 .35rem; }
@@ -872,6 +911,9 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
   .game-row-value { display: none; }
   .row-chevron { display: none; }
   .game-row-title h3 { font-size: 1rem; }
+  .loan-row { grid-template-columns: 40px minmax(0, 1fr); gap: .8rem; align-items: start; }
+  .loan-cover img { width: 40px; height: 60px; }
+  .loan-return { grid-column: 2; justify-self: start; }
   .stat-value { font-size: 1.9rem; }
   .stat { padding: .9rem; }
   .field-grid, .check-grid { grid-template-columns: 1fr; }
@@ -900,6 +942,7 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
   .theme-preview { width: 60px; height: 34px; }
   .setup-gallery { grid-template-columns: 1fr; }
   .site-footer { font-size: .72rem; }
+  .mobile-nav a { padding: .25rem .3rem; }
 }
 
 /* Public legal pages: readable measure without the signed-in shell. */

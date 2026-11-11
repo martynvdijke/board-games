@@ -1,4 +1,5 @@
 {{define "content"}}
+{{$d := .Data}}
 {{$g := .Data.Game}}
 <nav class="breadcrumb" aria-label="Breadcrumb">
   <a href="/">Shelf</a><svg><use href="#i-chevron"/></svg><span>{{$g.Name}}</span>
@@ -19,6 +20,7 @@
       <h1 class="display display--compact">{{$g.Name}}</h1>
       <div class="status-row">
         {{if $g.Owned}}<span class="status-badge is-owned"><svg><use href="#i-check"/></svg> Owned</span>{{end}}
+        {{if $d.Loan}}<span class="status-badge is-out"><svg><use href="#i-out"/></svg> On loan</span>{{end}}
         {{if $g.Wishlist}}<span class="status-badge">Wishlist</span>{{end}}
         {{if $g.WantToPlay}}<span class="status-badge">Want to play</span>{{end}}
         {{if $g.Preordered}}<span class="status-badge">Preordered</span>{{end}}
@@ -57,6 +59,53 @@
     </div>
   </div>
 </article>
+
+{{if $g.Owned}}
+<section id="lending" class="panel loan-panel" aria-labelledby="lending-title">
+  <div class="panel-head">
+    <h2 id="lending-title" class="section-title">Lending</h2>
+    <span class="panel-note">{{if $d.Loan}}On loan{{else}}On the shelf{{end}}</span>
+  </div>
+  {{if .Error}}<div class="callout callout--danger" role="alert">{{.Error}}</div>{{end}}
+
+  {{with $d.Loan}}
+  <div class="loan-out">
+    <p class="loan-out-line">With <strong>{{.Borrower}}</strong> since {{dateShort .LentAt}}.</p>
+    <p class="loan-meta">{{if eq .DaysOut 0}}Out today.{{else}}{{.DaysOut}} {{if eq .DaysOut 1}}day{{else}}days{{end}} out.{{end}}{{if .Overdue}} Overdue{{if gt .DaysOverdue 1}} by {{.DaysOverdue}} days{{else if .DaysOverdue}} by 1 day{{end}}{{if .DueAt}}, due {{dateShort .DueAt}}{{end}}.{{else if .DueAt}} Due back {{dateShort .DueAt}}.{{else}} No due date set.{{end}}</p>
+    {{if .Contact}}<p class="loan-notes">{{.Contact}}</p>{{end}}
+    {{if .Notes}}<p class="loan-notes">{{.Notes}}</p>{{end}}
+    <form method="post" action="/loans/{{.ID}}/return" class="loan-return">
+      <input type="hidden" name="csrf_token" value="{{$.CSRF}}">
+      <input type="hidden" name="next" value="/games/{{$g.ID}}">
+      <button class="button button--ghost" type="submit">Mark returned</button>
+    </form>
+  </div>
+  {{else}}
+  <form class="stack loan-form" method="post" action="/loans">
+    <input type="hidden" name="csrf_token" value="{{.CSRF}}">
+    <input type="hidden" name="game_id" value="{{$g.ID}}">
+    <div class="field-grid">
+      <label class="field"><span>Borrower</span>
+        <input type="text" name="borrower" value="{{$d.Lend.Borrower}}" list="recent-borrowers" maxlength="120" autocomplete="off" placeholder="Who took it?" required>
+      </label>
+      <label class="field"><span>Contact (optional)</span>
+        <input type="text" name="contact" value="{{$d.Lend.Contact}}" maxlength="200" placeholder="Phone, email, or how to reach them">
+      </label>
+      <label class="field"><span>Lent on</span>
+        <input type="date" name="lent_at" value="{{if $d.Lend.LentAt}}{{$d.Lend.LentAt}}{{else}}{{$d.PlayToday}}{{end}}" max="{{$d.PlayToday}}">
+      </label>
+      <label class="field"><span>Due back (optional)</span>
+        <input type="date" name="due_at" value="{{$d.Lend.DueAt}}">
+      </label>
+    </div>
+    <datalist id="recent-borrowers">{{range $d.Borrowers}}<option value="{{.}}"></option>{{end}}</datalist>
+    <label class="field"><span>Notes (optional)</span><textarea name="notes" rows="2" placeholder="What went with it, how long they can keep it…">{{$d.Lend.Notes}}</textarea></label>
+    <div class="form-actions"><button class="button button--primary" type="submit">Lend this game</button></div>
+    <p class="field-hint">One loan at a time. Mark it returned when the game comes back.</p>
+  </form>
+  {{end}}
+</section>
+{{end}}
 
 <section id="setup" class="panel setup-panel" aria-labelledby="setup-title">
   <div class="panel-head">

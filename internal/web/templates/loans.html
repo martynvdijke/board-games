@@ -1,0 +1,72 @@
+{{define "content"}}
+{{$d := .Data}}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Out of the house</p>
+    <h1 class="display display--compact">Loans<span class="display-dot">.</span></h1>
+    <p class="lede">Games that left the shelf, who took them, and when they are due back. Open loans come first, oldest lending date at the top.</p>
+  </div>
+</section>
+
+{{if and (not $d.Open) (not $d.Closed)}}
+<div class="empty-state">
+  <div class="empty-mark" aria-hidden="true"><svg><use href="#i-out"/></svg></div>
+  <h3>Nothing is lent out</h3>
+  <p>When a game leaves the house, lend it from its own page. It will wait here with the borrower's name and a due date if you set one.</p>
+  <a class="button button--primary" href="/">Browse the shelf</a>
+</div>
+{{else}}
+<section class="loans-section" aria-labelledby="open-loans-title">
+  <div class="loans-head">
+    <h2 id="open-loans-title" class="section-title">Out now</h2>
+    <span class="pipeline-count">{{len $d.Open}}</span>
+  </div>
+  {{if $d.Open}}
+  <ul class="loan-list">
+    {{range $d.Open}}
+    <li class="loan-row{{if .Overdue}} is-overdue{{end}}">
+      <div class="loan-cover">
+        <img src="/media/bgg/{{.BGGID}}.jpg" alt="" loading="lazy" width="48" height="72">
+      </div>
+      <div class="loan-main">
+        <h3 class="loan-title"><a href="/games/{{.GameID}}">{{.GameName}}</a></h3>
+        <p class="loan-meta">With <strong>{{.Borrower}}</strong> since {{dateShort .LentAt}} · {{if eq .DaysOut 0}}out today{{else}}{{.DaysOut}} {{if eq .DaysOut 1}}day{{else}}days{{end}} out{{end}}</p>
+        <p class="loan-tags">
+          {{if .Overdue}}<span class="loan-due is-overdue"><svg><use href="#i-clock"/></svg>Overdue{{if gt .DaysOverdue 1}} by {{.DaysOverdue}} days{{else if .DaysOverdue}} by 1 day{{end}} · due {{dateShort .DueAt}}</span>
+          {{else if .DueAt}}<span class="loan-due">Due {{dateShort .DueAt}}</span>
+          {{else}}<span class="loan-due loan-due--none">No due date</span>{{end}}
+          {{if .Contact}}<span class="loan-contact">{{.Contact}}</span>{{end}}
+        </p>
+        {{if .Notes}}<p class="loan-notes">{{.Notes}}</p>{{end}}
+      </div>
+      <form class="loan-return" method="post" action="/loans/{{.ID}}/return">
+        <input type="hidden" name="csrf_token" value="{{$.CSRF}}">
+        <input type="hidden" name="next" value="/loans">
+        <button class="button button--ghost button--small" type="submit" aria-label="Mark {{.GameName}} returned">Mark returned</button>
+      </form>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="pipeline-empty">Everything is back on the shelf.</p>
+  {{end}}
+</section>
+
+{{if $d.Closed}}
+<section class="panel loan-history" aria-labelledby="returned-title">
+  <div class="panel-head">
+    <h2 id="returned-title" class="section-title">Returned</h2>
+    <span class="panel-note">{{len $d.Closed}} recent</span>
+  </div>
+  <ol class="mini-timeline">
+    {{range $d.Closed}}
+    <li>
+      <span class="mini-date">{{dateShort .ReturnedAt}}</span>
+      <span class="mini-main"><a class="loan-history-name" href="/games/{{.GameID}}">{{.GameName}}</a> · with {{.Borrower}} · {{if eq .DaysOut 0}}back the same day{{else}}out {{.DaysOut}} {{if eq .DaysOut 1}}day{{else}}days{{end}}{{end}}{{if eq .ClosedReason "ownership"}} · left the collection{{end}}</span>
+    </li>
+    {{end}}
+  </ol>
+</section>
+{{end}}
+{{end}}
+{{end}}

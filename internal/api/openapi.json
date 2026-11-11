@@ -26,6 +26,9 @@
       "name": "Plays"
     },
     {
+      "name": "Loans"
+    },
+    {
       "name": "Stats"
     },
     {
@@ -620,6 +623,211 @@
         ]
       }
     },
+    "/loans": {
+      "get": {
+        "tags": [
+          "Loans"
+        ],
+        "summary": "List loans",
+        "responses": {
+          "200": {
+            "description": "The user's loans, open first when status is all",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "loans": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Loan"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid status or non-numeric limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "description": "Open loans are ordered oldest lend date first; closed loans newest return date first. limit bounds only the closed section.",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed",
+                "all"
+              ],
+              "default": "open"
+            },
+            "description": "Which loans to return: open, closed history, or both."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 24
+            },
+            "description": "Maximum closed loans to return. Values outside 1-100 are clamped."
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Loans"
+        ],
+        "summary": "Lend a game",
+        "responses": {
+          "201": {
+            "description": "Created loan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Loan"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "description": "The game already has an open loan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          }
+        },
+        "description": "The game must be on the user's owned shelf and must not already have an open loan. An empty lent_at means today.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoanCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/loans/{id}": {
+      "get": {
+        "tags": [
+          "Loans"
+        ],
+        "summary": "Get a loan",
+        "responses": {
+          "200": {
+            "description": "Loan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Loan"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/LoanID"
+          }
+        ]
+      }
+    },
+    "/loans/{id}/return": {
+      "post": {
+        "tags": [
+          "Loans"
+        ],
+        "summary": "Mark a loan returned",
+        "responses": {
+          "200": {
+            "description": "Closed loan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Loan"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          }
+        },
+        "description": "Closes an open loan. The body is optional; an empty returned_at means today.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/LoanID"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoanReturn"
+              }
+            }
+          }
+        }
+      }
+    },
     "/stats": {
       "get": {
         "tags": [
@@ -830,6 +1038,14 @@
         "required": true,
         "schema": {
           "type": "string"
+        }
+      },
+      "LoanID": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
         }
       }
     },
@@ -1312,6 +1528,116 @@
           },
           "updated_at": {
             "type": "string"
+          }
+        }
+      },
+      "LoanGame": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "bgg_id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "thumbnail_url": {
+            "type": "string"
+          }
+        }
+      },
+      "Loan": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "game": {
+            "$ref": "#/components/schemas/LoanGame"
+          },
+          "borrower": {
+            "type": "string"
+          },
+          "contact": {
+            "type": "string"
+          },
+          "lent_at": {
+            "type": "string",
+            "description": "Calendar day, YYYY-MM-DD."
+          },
+          "due_at": {
+            "type": "string",
+            "description": "Calendar day, YYYY-MM-DD, or empty when no due date was set."
+          },
+          "returned_at": {
+            "type": "string",
+            "description": "Calendar day, YYYY-MM-DD, or empty while the loan is open."
+          },
+          "notes": {
+            "type": "string"
+          },
+          "closed_reason": {
+            "type": "string",
+            "enum": [
+              "",
+              "returned",
+              "ownership"
+            ]
+          },
+          "overdue": {
+            "type": "boolean"
+          },
+          "days_out": {
+            "type": "integer"
+          },
+          "days_overdue": {
+            "type": "integer"
+          },
+          "notified_at": {
+            "type": "string"
+          }
+        }
+      },
+      "LoanCreate": {
+        "type": "object",
+        "required": [
+          "game_id",
+          "borrower"
+        ],
+        "properties": {
+          "game_id": {
+            "type": "integer"
+          },
+          "borrower": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "contact": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "lent_at": {
+            "type": "string",
+            "description": "YYYY-MM-DD; empty or omitted means today."
+          },
+          "due_at": {
+            "type": "string",
+            "description": "YYYY-MM-DD, optional and not before lent_at."
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        }
+      },
+      "LoanReturn": {
+        "type": "object",
+        "properties": {
+          "returned_at": {
+            "type": "string",
+            "description": "YYYY-MM-DD; empty or omitted means today."
           }
         }
       },

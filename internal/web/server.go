@@ -16,6 +16,7 @@ import (
 	"boardgames/internal/auth"
 	"boardgames/internal/collection"
 	"boardgames/internal/config"
+	"boardgames/internal/loans"
 	"boardgames/internal/plays"
 	"boardgames/internal/trmnl"
 )
@@ -26,6 +27,7 @@ type Handler struct {
 	Account        *account.Service
 	Games          *collection.Repo
 	Plays          *plays.Repo
+	Loans          *loans.Repo
 	Sync           *collection.SyncService
 	TRMNL          *trmnl.Service
 	Images         *trmnl.ImageService
@@ -65,6 +67,7 @@ type OverviewData struct {
 	Pages     []int
 	PageCount int
 	View      string
+	Loans     map[int64]*loans.Loan // open loan per game id, for the cards on this page
 }
 
 func (d *OverviewData) queryURL(page int) string {
@@ -116,6 +119,14 @@ type PipelineData struct {
 type GameData struct {
 	Game      *collection.GameDetail
 	PlayToday string
+	Loan      *loans.Loan // open loan, nil when the game is on the shelf
+	Borrowers []string    // recent borrowers for the lend form
+	Lend      lendAttempt // what the user typed when a lend was refused
+}
+
+type LoansData struct {
+	Open   []loans.Loan
+	Closed []loans.Loan
 }
 
 type PlaysData struct {
@@ -212,6 +223,9 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("POST /plays/{id}/delete", h.requireUser(h.deletePlay))
 	mux.HandleFunc("GET /stats", h.requireUser(h.statsPage))
 	mux.HandleFunc("GET /pipeline", h.requireUser(h.pipeline))
+	mux.HandleFunc("GET /loans", h.requireUser(h.loansPage))
+	mux.HandleFunc("POST /loans", h.requireUser(h.createLoan))
+	mux.HandleFunc("POST /loans/{id}/return", h.requireUser(h.returnLoan))
 	mux.HandleFunc("GET /settings", h.requireUser(h.settingsPage))
 	mux.HandleFunc("POST /settings/bgg", h.requireUser(h.saveBGG))
 	mux.HandleFunc("POST /settings/bgg-token", h.requireUser(h.saveBGGToken))

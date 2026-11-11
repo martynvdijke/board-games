@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 
 	"boardgames/internal/account"
@@ -15,6 +16,7 @@ import (
 	"boardgames/internal/collection"
 	"boardgames/internal/config"
 	"boardgames/internal/db"
+	"boardgames/internal/loans"
 	"boardgames/internal/plays"
 	"boardgames/internal/trmnl"
 )
@@ -61,7 +63,7 @@ func setupAPI(t *testing.T) *fixture {
 	full, _, _ := manager.CreateToken(ctx, user.ID, "full", []string{"read", "write", "trmnl"})
 	games := collection.NewRepo(database)
 	playRepo := plays.NewRepo(database)
-	handler := &Handler{Config: cfg, Auth: manager, Games: games, Plays: playRepo, DB: database,
+	handler := &Handler{Config: cfg, Auth: manager, Games: games, Plays: playRepo, Loans: loans.New(database), DB: database,
 		Account: account.New(database), TRMNL: trmnl.NewService(database, games, playRepo, cfg)}
 	return &fixture{handler: handler, db: database, user: user, read: read, write: write, full: full, gameID: gameID}
 }
@@ -439,6 +441,262 @@ func TestValueDataIsUserScoped(t *testing.T) {
 	}
 	if got := cv["paid_games"].(float64); got != 1 {
 		t.Errorf("paid_games = %v, want only the first user's 1", got)
+	}
+}
+
+// lend creates a loan through the API and returns the decoded payload.
+func (f *fixture) lend(t *testing.T, token string, gameID int64, borrower, lentAt string) map[string]any {
+	t.Helper()
+	payload := map[string]any{"game_id": gameID, "borrower": borrower}
+	if lentAt != "" {
+		payload["lent_at"] = lentAt
+	}
+	rr := f.request(t, http.MethodPost, "/v1/loans", token, payload)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("lend game %d: %d %s", gameID, rr.Code, rr.Body)
+	}
+	return decode(t, rr)["data"].(map[string]any)
+}
+
+// markReturned closes a loan; an empty date sends no body so the server default
+// (today) applies.
+func (f *fixture) markReturned(t *testing.T, token string, id int64, returnedAt string) map[string]any {
+	t.Helper()
+	var body any
+	if returnedAt != "" {
+		body = map[string]any{"returned_at": returnedAt}
+	}
+	rr := f.request(t, http.MethodPost, "/v1/loans/"+itoa(id)+"/return", token, body)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("return loan %d: %d %s", id, rr.Code, rr.Body)
+	}
+	return decode(t, rr)["data"].(map[string]any)
+}
+
+func (f *fixture) loanList(t *testing.T, token, query string) []any {
+	t.Helper()
+	rr := f.request(t, http.MethodGet, "/v1/loans"+query, token, nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("list loans %q: %d %s", query, rr.Code, rr.Body)
+	}
+	return decode(t, rr)["loans"].([]any)
+}
+
+func loanID(t *testing.T, loan map[string]any) int64 {
+	t.Helper()
+	id, ok := loan["id"].(float64)
+	if !ok {
+		t.Fatalf("loan has no numeric id: %v", loan)
+	}
+	return int64(id)
+}
+
+func TestLoanCreateAndList(t *testing.T) {
+	f := setupAPI(t)
+	loan := f.lend(t, f.write, f.gameID, "Sam", "2026-08-01")
+
+	for _, key := range []string{"id", "game", "borrower", "contact", "lent_at", "due_at", "returned_at",
+		"notes", "closed_reason", "overdue", "days_out", "days_overdue", "notified_at"} {
+		if _, ok := loan[key]; !ok {
+			t.Errorf("loan is missing %q: %v", key, loan)
+		}
+	}
+	if loan["borrower"] != "Sam" || loan["lent_at"] != "2026-08-01" {
+		t.Fatalf("unexpected loan: %v", loan)
+	}
+	for _, key := range []string{"contact", "due_at", "returned_at", "notes", "closed_reason", "notified_at"} {
+		if loan[key] != "" {
+			t.Errorf("%s = %v, want empty", key, loan[key])
+		}
+	}
+	if loan["overdue"] != false {
+		t.Errorf("overdue = %v, want false without a due date", loan["overdue"])
+	}
+	if _, ok := loan["days_out"].(float64); !ok {
+		t.Errorf("days_out is not numeric: %v", loan["days_out"])
+	}
+	if _, ok := loan["days_overdue"].(float64); !ok {
+		t.Errorf("days_overdue is not numeric: %v", loan["days_overdue"])
+	}
+	game := loan["game"].(map[string]any)
+	if int64(game["id"].(float64)) != f.gameID || game["name"] != "Catan" || int(game["bgg_id"].(float64)) != 13 {
+		t.Errorf("unexpected game reference: %v", game)
+	}
+	if _, ok := game["thumbnail_url"].(string); !ok {
+		t.Errorf("thumbnail_url is not a string: %v", game["thumbnail_url"])
+	}
+
+	list := f.loanList(t, f.read, "")
+	if len(list) != 1 {
+		t.Fatalf("open loans = %d, want 1: %v", len(list), list)
+	}
+	if got := loanID(t, list[0].(map[string]any)); got != loanID(t, loan) {
+		t.Errorf("listed loan id = %d, want %d", got, loanID(t, loan))
+	}
+}
+
+func TestLoanConflictLeavesFirstLoanUnchanged(t *testing.T) {
+	f := setupAPI(t)
+	first := f.lend(t, f.write, f.gameID, "Sam", "2026-08-01")
+
+	rr := f.request(t, http.MethodPost, "/v1/loans", f.write, map[string]any{"game_id": f.gameID, "borrower": "Alex"})
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", rr.Code, rr.Body)
+	}
+	env, ok := decode(t, rr)["error"].(map[string]any)
+	if !ok {
+		t.Fatalf("missing error envelope: %s", rr.Body)
+	}
+	if env["code"] != "conflict" {
+		t.Errorf("code = %v, want conflict", env["code"])
+	}
+	if msg, _ := env["message"].(string); !strings.Contains(msg, "Catan") {
+		t.Errorf("conflict message should name the game, got %q", msg)
+	}
+
+	rr = f.request(t, http.MethodGet, "/v1/loans/"+itoa(loanID(t, first)), f.read, nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("re-read loan: %d %s", rr.Code, rr.Body)
+	}
+	again := decode(t, rr)["data"].(map[string]any)
+	if loanID(t, again) != loanID(t, first) || again["borrower"] != "Sam" {
+		t.Errorf("first loan changed: %v", again)
+	}
+}
+
+func TestLoanReturnMovesToClosed(t *testing.T) {
+	f := setupAPI(t)
+	loan := f.lend(t, f.write, f.gameID, "Sam", "2026-08-01")
+
+	closed := f.markReturned(t, f.write, loanID(t, loan), "2026-09-01")
+	if closed["returned_at"] != "2026-09-01" || closed["closed_reason"] != "returned" {
+		t.Fatalf("unexpected closed loan: %v", closed)
+	}
+	if closed["overdue"] != false {
+		t.Errorf("a returned loan cannot be overdue: %v", closed)
+	}
+	if open := f.loanList(t, f.read, "?status=open"); len(open) != 0 {
+		t.Errorf("open loans = %d, want 0", len(open))
+	}
+	history := f.loanList(t, f.read, "?status=closed")
+	if len(history) != 1 || loanID(t, history[0].(map[string]any)) != loanID(t, loan) {
+		t.Errorf("closed history = %v", history)
+	}
+
+	// An omitted body closes the loan today.
+	second := f.lend(t, f.write, f.addOwnedGame(t, f.user.ID, 501, "Second Game"), "Alex", "2026-09-01")
+	defaulted := f.markReturned(t, f.write, loanID(t, second), "")
+	if defaulted["returned_at"] == "" || defaulted["closed_reason"] != "returned" {
+		t.Errorf("omitted returned_at should default to today: %v", defaulted)
+	}
+}
+
+func TestLoanCrossUserIsNotFound(t *testing.T) {
+	f := setupAPI(t)
+	loan := f.lend(t, f.write, f.gameID, "Sam", "2026-08-01")
+
+	other, err := f.handler.Auth.UpsertUser(context.Background(), "other@example.com", "Other", "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherToken, _, err := f.handler.Auth.CreateToken(context.Background(), other.ID, "other", []string{"read", "write"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, path := range []string{"/v1/loans/" + itoa(loanID(t, loan)), "/v1/loans/" + itoa(loanID(t, loan)) + "/return"} {
+		method := http.MethodGet
+		if strings.HasSuffix(path, "/return") {
+			method = http.MethodPost
+		}
+		rr := f.request(t, method, path, otherToken, nil)
+		if rr.Code != http.StatusNotFound {
+			t.Errorf("%s %s: expected 404, got %d: %s", method, path, rr.Code, rr.Body)
+		}
+	}
+	if list := f.loanList(t, otherToken, ""); len(list) != 0 {
+		t.Errorf("other user sees %d loans, want 0", len(list))
+	}
+}
+
+func TestLoanRequiresOwnedGame(t *testing.T) {
+	f := setupAPI(t)
+	other, err := f.handler.Auth.UpsertUser(context.Background(), "other@example.com", "Other", "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherGame := f.addOwnedGame(t, other.ID, 502, "Not Yours")
+
+	rr := f.request(t, http.MethodPost, "/v1/loans", f.write, map[string]any{"game_id": otherGame, "borrower": "Sam"})
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rr.Code, rr.Body)
+	}
+	env := decode(t, rr)["error"].(map[string]any)
+	fields, ok := env["fields"].(map[string]any)
+	if !ok || fields["game_id"] == nil {
+		t.Errorf("422 should name game_id: %s", rr.Body)
+	}
+
+	// Missing borrower is attributed to that field.
+	rr = f.request(t, http.MethodPost, "/v1/loans", f.write, map[string]any{"game_id": f.gameID})
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 for missing borrower, got %d: %s", rr.Code, rr.Body)
+	}
+	env = decode(t, rr)["error"].(map[string]any)
+	if fields, ok := env["fields"].(map[string]any); !ok || fields["borrower"] == nil {
+		t.Errorf("422 should name borrower: %s", rr.Body)
+	}
+}
+
+func TestLoanListOrderingAndLimit(t *testing.T) {
+	f := setupAPI(t)
+	closedA := f.lend(t, f.write, f.addOwnedGame(t, f.user.ID, 601, "Closed A"), "A", "2026-01-01")
+	f.markReturned(t, f.write, loanID(t, closedA), "2026-02-01")
+	openB := f.lend(t, f.write, f.addOwnedGame(t, f.user.ID, 602, "Open B"), "B", "2026-03-01")
+	openC := f.lend(t, f.write, f.addOwnedGame(t, f.user.ID, 603, "Open C"), "C", "2026-04-01")
+	closedD := f.lend(t, f.write, f.addOwnedGame(t, f.user.ID, 604, "Closed D"), "D", "2026-04-15")
+	f.markReturned(t, f.write, loanID(t, closedD), "2026-05-01")
+
+	all := f.loanList(t, f.read, "?status=all")
+	if len(all) != 4 {
+		t.Fatalf("status=all returned %d loans, want 4: %v", len(all), all)
+	}
+	wantOrder := []int64{loanID(t, openB), loanID(t, openC), loanID(t, closedD), loanID(t, closedA)}
+	for i, want := range wantOrder {
+		if got := loanID(t, all[i].(map[string]any)); got != want {
+			t.Errorf("status=all[%d] = %d, want %d (open first, then newest closed)", i, got, want)
+		}
+	}
+	for i, raw := range all {
+		loan := raw.(map[string]any)
+		isOpen := loan["returned_at"] == ""
+		if i < 2 && !isOpen {
+			t.Errorf("loan %d should be open: %v", i, loan)
+		}
+		if i >= 2 && isOpen {
+			t.Errorf("loan %d should be closed: %v", i, loan)
+		}
+	}
+
+	// limit applies only to the closed section, and numeric outliers clamp.
+	clampedLow := f.loanList(t, f.read, "?status=closed&limit=0")
+	if len(clampedLow) != 1 {
+		t.Errorf("closed&limit=0 returned %d, want 1 after clamping", len(clampedLow))
+	}
+	clampedHigh := f.loanList(t, f.read, "?status=closed&limit=1000")
+	if len(clampedHigh) != 2 {
+		t.Errorf("closed&limit=1000 returned %d, want both loans", len(clampedHigh))
+	}
+	mixed := f.loanList(t, f.read, "?status=all&limit=0")
+	if len(mixed) != 3 {
+		t.Errorf("all&limit=0 returned %d, want 2 open + 1 closed", len(mixed))
+	}
+
+	for _, query := range []string{"?status=sideways", "?limit=abc"} {
+		rr := f.request(t, http.MethodGet, "/v1/loans"+query, f.read, nil)
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("%s: expected 400, got %d: %s", query, rr.Code, rr.Body)
+		}
 	}
 }
 

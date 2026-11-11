@@ -51,6 +51,7 @@
     <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5V5a2 2 0 0 1 2-2h14v14H6.5A2.5 2.5 0 0 0 4 19.5z"/></symbol>
     <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
     <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></symbol>
+    <symbol id="i-out" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-8 8M10 5H5.5A1.5 1.5 0 0 0 4 6.5v12A1.5 1.5 0 0 0 5.5 20h12a1.5 1.5 0 0 0 1.5-1.5V14"/></symbol>
   </svg>
 
   {{if .User}}
@@ -63,6 +64,7 @@
       <a href="/" {{if eq .Active "shelf"}}aria-current="page"{{end}}><svg><use href="#i-shelf"/></svg><span>Shelf</span></a>
       <a href="/pipeline" {{if eq .Active "pipeline"}}aria-current="page"{{end}}><svg><use href="#i-arrow"/></svg><span>Pipeline</span></a>
       <a href="/plays" {{if eq .Active "plays"}}aria-current="page"{{end}}><svg><use href="#i-dice"/></svg><span>Play log</span></a>
+      <a href="/loans" {{if eq .Active "loans"}}aria-current="page"{{end}}><svg><use href="#i-out"/></svg><span>Loans</span></a>
       <a href="/stats" {{if eq .Active "stats"}}aria-current="page"{{end}}><svg><use href="#i-chart"/></svg><span>Stats</span></a>
       <a href="/settings" {{if eq .Active "settings"}}aria-current="page"{{end}}><svg><use href="#i-settings"/></svg><span>Settings</span></a>
     </nav>
@@ -84,6 +86,7 @@
     <a href="/" {{if eq .Active "shelf"}}aria-current="page"{{end}}><svg><use href="#i-shelf"/></svg><span>Shelf</span></a>
     <a href="/pipeline" {{if eq .Active "pipeline"}}aria-current="page"{{end}}><svg><use href="#i-arrow"/></svg><span>Pipeline</span></a>
     <a href="/plays" {{if eq .Active "plays"}}aria-current="page"{{end}}><svg><use href="#i-dice"/></svg><span>Plays</span></a>
+    <a href="/loans" {{if eq .Active "loans"}}aria-current="page"{{end}}><svg><use href="#i-out"/></svg><span>Loans</span></a>
     <a href="/stats" {{if eq .Active "stats"}}aria-current="page"{{end}}><svg><use href="#i-chart"/></svg><span>Stats</span></a>
     <a href="/settings" {{if eq .Active "settings"}}aria-current="page"{{end}}><svg><use href="#i-settings"/></svg><span>Settings</span></a>
   </nav>

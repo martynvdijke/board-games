@@ -1,4 +1,5 @@
 {{define "shelf_results"}}
+{{$loans := .Loans}}
 <div class="results-head">
   <p class="result-count" id="result-count">{{.Total}} {{if eq .Total 1}}game{{else}}games{{end}}{{if .Filters.HasFilters}} matching{{end}}</p>
   {{if .Filters.HasFilters}}<a class="text-link text-link--small" href="/">Reset filters</a>{{end}}
@@ -16,6 +17,7 @@
         {{if .Favorite}}<svg class="favorite-mark" aria-label="Favourite"><use href="#i-heart"/></svg>{{end}}
       </div>
       <p class="game-row-meta">{{if .Year}}{{.Year}} · {{end}}{{with .PlayerLabel}}{{.}} · {{end}}{{with .TimeLabel}}{{.}}{{end}}{{if .IsExpansion}} · Expansion{{end}}</p>
+      {{with index $loans .ID}}<p class="game-row-loan"><svg><use href="#i-out"/></svg>Out with <strong>{{.Borrower}}</strong></p>{{end}}
     </div>
     <div class="game-row-stats">
       {{if .UserRating}}<span class="rating-chip rating-chip--small"><svg><use href="#i-star"/></svg>{{.RatingLabel}}</span>{{end}}
@@ -35,6 +37,7 @@
       <div class="game-cover">
         <img src="{{.CoverURL}}" alt="Cover of {{.Name}}" loading="lazy" width="300" height="450">
         {{if eq .TotalPlays 0}}<span class="ribbon">Unplayed</span>{{end}}
+        {{with index $loans .ID}}<span class="loan-badge"><svg><use href="#i-out"/></svg><span class="sr-only">On loan with {{.Borrower}}</span></span>{{end}}
         {{if .Favorite}}<span class="favorite-badge" title="Favourite"><svg><use href="#i-heart"/></svg></span>{{end}}
         {{if .UserRating}}<span class="rating-chip"><svg><use href="#i-star"/></svg>{{.RatingLabel}}</span>{{end}}
       </div>

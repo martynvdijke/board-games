@@ -22,6 +22,7 @@ import (
 	"boardgames/internal/config"
 	"boardgames/internal/db"
 	"boardgames/internal/demo"
+	"boardgames/internal/loans"
 	"boardgames/internal/notify"
 	"boardgames/internal/observability"
 	"boardgames/internal/plays"
@@ -77,9 +78,17 @@ func run() error {
 		notifier = telegram
 	}
 	playRepo.SetNotifier(notifier)
+	loanRepo := loans.New(database)
+	loanRepo.SetIdleDays(cfg.LoanIdleReminderDays)
 	bggClient := bgg.NewClient(cfg.BGGBaseURL, cfg.BGGUserAgent, cfg.BGGRequestsPerSecond)
 	syncService := collection.NewSyncService(database, bggClient, games, playRepo, cfg)
 	syncService.SetNotifier(notifier)
+	// A game that leaves the collection must not keep an open loan: close it
+	// with an explanatory note as soon as the sync has rewritten ownership.
+	syncService.OnCollectionChanged = func(ctx context.Context, userID string) error {
+		_, err := loanRepo.CloseForOwnershipChange(ctx, userID)
+		return err
+	}
 	trmnlService := trmnl.NewService(database, games, playRepo, cfg)
 	setupMediaDir := filepath.Join(filepath.Dir(cfg.DatabasePath), "setup")
 	accountService := account.NewWithMedia(database, setupMediaDir)
@@ -92,7 +101,7 @@ func run() error {
 	}
 
 	webHandler := &web.Handler{
-		Config: cfg, Auth: authManager, Account: accountService, Games: games, Plays: playRepo, Sync: syncService,
+		Config: cfg, Auth: authManager, Account: accountService, Games: games, Plays: playRepo, Loans: loanRepo, Sync: syncService,
 		TRMNL: trmnlService, Images: images, SetupMediaDir: setupMediaDir, DB: database, MetricsHandler: providers.MetricsHandler(),
 	}
 	apiHandler := &api.Handler{
@@ -109,6 +118,9 @@ func run() error {
 
 	go syncService.Scheduler(ctx)
 	go cleanupSessions(ctx, authManager)
+	if cfg.RemindersEnabled {
+		go remindLoans(ctx, loanRepo, notifier, time.Duration(cfg.LoanReminderDays)*24*time.Hour)
+	}
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -153,6 +165,27 @@ func cleanupSessions(ctx context.Context, manager *auth.Manager) {
 		case <-ticker.C:
 			if err := manager.CleanupSessions(ctx); err != nil {
 				slog.Warn("session cleanup", "error", err)
+			}
+		}
+	}
+}
+
+// loanReminderInterval is how often the loan reminder pass runs. It shares the
+// six-hour cadence of the other background jobs.
+const loanReminderInterval = 6 * time.Hour
+
+// remindLoans sends due loan reminders. A nil notifier makes every pass a
+// no-op; interval is the minimum wait before reminding the same loan again.
+func remindLoans(ctx context.Context, repo *loans.Repo, n notify.Notifier, interval time.Duration) {
+	ticker := time.NewTicker(loanReminderInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if _, err := repo.Remind(ctx, n, interval); err != nil {
+				slog.Warn("loan reminders", "error", err)
 			}
 		}
 	}

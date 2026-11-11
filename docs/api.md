@@ -60,6 +60,10 @@ List endpoints take `limit` (1–100, default 24) and `offset` (≥0):
 | GET | `/plays/{id}` | read | Play and players |
 | PATCH | `/plays/{id}` | write | Local plays only |
 | DELETE | `/plays/{id}` | write | Local plays only |
+| GET | `/loans` | read | `status=open\|closed\|all` (default `open`), `limit` 1–100 (default 24) for closed history |
+| POST | `/loans` | write | Lend an owned game; `201`, or `409` when it is already out |
+| GET | `/loans/{id}` | read | One loan; another user's loan id is `404`, never `403` |
+| POST | `/loans/{id}/return` | write | Close an open loan; body and `returned_at` are optional |
 | GET | `/stats` | read | Lifetime and yearly aggregates |
 | GET | `/sync` | read | Latest and recent sync runs |
 | POST | `/sync` | write | Starts a sync; `202` or `409` |
@@ -96,6 +100,89 @@ curl -X POST https://shelf.example.com/api/v1/plays \
 
 BGG-imported plays (`origin: "bgg"`) cannot be edited or deleted through the
 API; log a local correction instead.
+
+### Loans
+
+A loan records that an owned game is out with someone. At most one open loan
+exists per game; dates are calendar days (`YYYY-MM-DD`), and `overdue`,
+`days_out`, and `days_overdue` are derived by the server on every read.
+
+Every loan has this shape (the embedded `game` is a reference, not the full
+game resource):
+
+```json
+{
+  "id": 1,
+  "game": { "id": 9, "bgg_id": 1234, "name": "Patchwork", "thumbnail_url": "https://shelf.example.com/media/bgg/1234.jpg" },
+  "borrower": "Sam",
+  "contact": "",
+  "lent_at": "2026-08-01",
+  "due_at": "",
+  "returned_at": "",
+  "notes": "",
+  "closed_reason": "",
+  "overdue": false,
+  "days_out": 101,
+  "days_overdue": 0,
+  "notified_at": ""
+}
+```
+
+#### List loans
+
+```sh
+curl -H "Authorization: Bearer $TOKEN" \
+  "https://shelf.example.com/api/v1/loans?status=all&limit=10"
+```
+
+```json
+{ "loans": [] }
+```
+
+`open` (the default) lists open loans oldest lend date first; `closed` lists
+recently returned loans newest return date first; `all` returns open loans
+followed by closed history. `limit` bounds only the closed section. Numeric
+values outside 1–100 are clamped; a non-numeric value is `400`.
+
+#### Lend a game
+
+```sh
+curl -X POST https://shelf.example.com/api/v1/loans \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"game_id": 17, "borrower": "Sam", "due_at": "2026-12-01", "notes": "Brought to game night"}'
+```
+
+`lent_at` defaults to today. The game must be on your owned shelf and must not
+already have an open loan. The response is `201` with the loan in `data`.
+
+#### Mark a loan returned
+
+```sh
+curl -X POST https://shelf.example.com/api/v1/loans/1/return \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"returned_at": "2026-11-09"}'
+```
+
+The body is optional; an empty or omitted `returned_at` means today. The closed
+loan is returned in `data` with `closed_reason: "returned"` and stays in
+`status=closed` history.
+
+#### Get one loan
+
+```sh
+curl -H "Authorization: Bearer $TOKEN" \
+  https://shelf.example.com/api/v1/loans/1
+```
+
+Loan failures use the standard envelope:
+
+| Status | When |
+| --- | --- |
+| `404` | The loan does not exist, or belongs to another user |
+| `409` | The game already has an open loan; the message names the game |
+| `422` | The game is not owned, the borrower is missing, or a date is malformed |
 
 ### Shelf update
 

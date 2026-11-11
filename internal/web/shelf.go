@@ -85,6 +85,7 @@ func (h *Handler) overview(w http.ResponseWriter, r *http.Request) {
 	}
 	data := &OverviewData{Filters: f, Games: games, Total: total, Facets: facets, Stats: stats, View: f.Density,
 		Greeting: greeting(time.Now()), FirstName: firstName(user.Name)}
+	data.Loans = h.loansByGame(ctx, user.ID, games)
 	if payload, err := h.TRMNL.Build(ctx, user.ID); err == nil {
 		data.Pick = payload.Pick
 	}
@@ -148,6 +149,7 @@ func (h *Handler) gamesPartial(w http.ResponseWriter, r *http.Request) {
 	}
 	data := &OverviewData{Filters: f, Games: games, Total: total, Stats: stats, View: f.Density,
 		PageCount: pageCount, Pages: pageWindow(f.Page, pageCount)}
+	data.Loans = h.loansByGame(ctx, user.ID, games)
 	h.renderPartial(w, "shelf_results", data)
 }
 
@@ -170,7 +172,7 @@ func (h *Handler) gameDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := h.page(r, game.Name, "shelf", "")
-	p.Data = &GameData{Game: game, PlayToday: time.Now().Format("2006-01-02")}
+	p.Data = h.gameData(ctx, user.ID, game)
 	h.render(w, r, "game.html", p)
 }
 

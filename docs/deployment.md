@@ -150,6 +150,19 @@ both script loading and the `/api/send` beacon. Events are limited to
 `theme_changed`, `shelf_search` (a `has_query` boolean, never the query text),
 `play_submitted`, and `sync_started`. No game, player, or note data is sent.
 
+### Loan reminders
+
+Loan reminders are opt-in: set `REMINDERS_ENABLED=true` and configure
+`TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`, otherwise the pass does nothing. It
+runs on the same six-hour background ticker as session cleanup. `LOAN_REMINDER_DAYS`
+is the minimum gap between reminders for one loan and `LOAN_IDLE_REMINDER_DAYS`
+is the first nudge for a loan without a due date.
+
+The "already reminded" guard lives in the loan's `notified_at` column, and the
+pass runs in every process. The app assumes a single container; if you run a
+second replica against the same database, both could send the same reminder in
+the same tick. Run one replica, or accept the occasional duplicate.
+
 ## Single-user versus multi-user
 
 The schema is multi-user and OIDC allows more people in, but v1 intentionally

@@ -37,6 +37,9 @@ type Config struct {
 	BGGRequestsPerSecond float64
 	BGGRefreshDays       int
 	SyncInterval         time.Duration
+	RemindersEnabled     bool
+	LoanReminderDays     int
+	LoanIdleReminderDays int
 	TrustedProxies       []string
 	MetricsEnabled       bool
 	OTLPEndpoint         string
@@ -85,6 +88,9 @@ func Load() (*Config, error) {
 		BGGRequestsPerSecond: float("BGG_REQUESTS_PER_SECOND", 1),
 		BGGRefreshDays:       integer("BGG_REFRESH_DAYS", 30),
 		SyncInterval:         duration("BGG_SYNC_INTERVAL", 6*time.Hour),
+		RemindersEnabled:     boolean("REMINDERS_ENABLED", false),
+		LoanReminderDays:     integer("LOAN_REMINDER_DAYS", 14),
+		LoanIdleReminderDays: integer("LOAN_IDLE_REMINDER_DAYS", 30),
 		TrustedProxies:       list("TRUSTED_PROXIES"),
 		MetricsEnabled:       boolean("METRICS_ENABLED", true),
 		OTLPEndpoint:         os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
@@ -192,6 +198,16 @@ func (c *Config) Validate() error {
 	if c.SessionTTL <= 0 {
 		return errors.New("SESSION_TTL must be positive")
 	}
+	// A disabled feature must never fail startup, so these are only checked
+	// when reminders are actually turned on.
+	if c.RemindersEnabled {
+		if c.LoanReminderDays <= 0 {
+			return errors.New("LOAN_REMINDER_DAYS must be positive when REMINDERS_ENABLED is true")
+		}
+		if c.LoanIdleReminderDays <= 0 {
+			return errors.New("LOAN_IDLE_REMINDER_DAYS must be positive when REMINDERS_ENABLED is true")
+		}
+	}
 	return nil
 }
 
@@ -240,6 +256,9 @@ func (c *Config) LogValue() slog.Value {
 		slog.String("telegram_chat_id", redact(c.TelegramChatID)),
 		slog.Int("bgg_refresh_days", c.BGGRefreshDays),
 		slog.Duration("sync_interval", c.SyncInterval),
+		slog.Bool("reminders_enabled", c.RemindersEnabled),
+		slog.Int("loan_reminder_days", c.LoanReminderDays),
+		slog.Int("loan_idle_reminder_days", c.LoanIdleReminderDays),
 		slog.Bool("metrics_enabled", c.MetricsEnabled),
 		slog.String("legal_controller", c.LegalControllerName),
 		slog.String("legal_contact_email", c.LegalContactEmail),
