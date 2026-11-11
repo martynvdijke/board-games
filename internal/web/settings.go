@@ -1,7 +1,9 @@
 package web
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -11,7 +13,125 @@ import (
 	"boardgames/internal/bgg"
 	"boardgames/internal/collection"
 	"boardgames/internal/db"
+	"boardgames/internal/yearreview"
 )
+
+// SessionView is one row of the "Where you're signed in" panel.
+type SessionView struct {
+	ID       string
+	Device   string
+	IP       string
+	Created  string
+	LastSeen string
+	Current  bool
+}
+
+// sessionViews loads the caller's sessions and formats them for display. It
+// never exposes the session token hash or CSRF secret.
+func (h *Handler) sessionViews(r *http.Request, ctx context.Context, userID string) []SessionView {
+	sessions, err := h.Auth.ListSessions(ctx, userID)
+	if err != nil {
+		slog.Warn("list sessions", "error", err)
+		return nil
+	}
+	current := ""
+	if a := auth.FromContext(r.Context()); a != nil && a.Session != nil {
+		current = auth.SessionID(a.Session.TokenHash)
+	}
+	now := time.Now().UTC()
+	views := make([]SessionView, 0, len(sessions))
+	for _, s := range sessions {
+		views = append(views, SessionView{
+			ID:       s.ID,
+			Device:   deviceLabel(s.UserAgent),
+			IP:       s.IP,
+			Created:  dateShort(s.CreatedAt),
+			LastSeen: relativeTime(s.LastSeenAt, now),
+			Current:  s.ID == current,
+		})
+	}
+	return views
+}
+
+// deviceLabel turns a User-Agent into "Chrome on macOS"-style text. It is
+// deliberately coarse: it names the family and platform, not a version.
+func deviceLabel(ua string) string {
+	ua = strings.TrimSpace(ua)
+	if ua == "" {
+		return "Unknown device"
+	}
+	var browser string
+	switch {
+	case strings.Contains(ua, "Edg/") || strings.Contains(ua, "EdgA/") || strings.Contains(ua, "EdgiOS/"):
+		browser = "Edge"
+	case strings.Contains(ua, "OPR/") || strings.Contains(ua, "Opera"):
+		browser = "Opera"
+	case strings.Contains(ua, "Chrome/") || strings.Contains(ua, "CriOS/"):
+		browser = "Chrome"
+	case strings.Contains(ua, "Firefox/") || strings.Contains(ua, "FxiOS/"):
+		browser = "Firefox"
+	case strings.Contains(ua, "Safari/"):
+		browser = "Safari"
+	}
+	var platform string
+	switch {
+	case strings.Contains(ua, "iPhone"):
+		platform = "iPhone"
+	case strings.Contains(ua, "iPad"):
+		platform = "iPad"
+	case strings.Contains(ua, "Android"):
+		platform = "Android"
+	case strings.Contains(ua, "CrOS"):
+		platform = "ChromeOS"
+	case strings.Contains(ua, "Windows"):
+		platform = "Windows"
+	case strings.Contains(ua, "Mac OS X") || strings.Contains(ua, "Macintosh"):
+		platform = "macOS"
+	case strings.Contains(ua, "Linux"):
+		platform = "Linux"
+	}
+	switch {
+	case browser != "" && platform != "":
+		return browser + " on " + platform
+	case browser != "":
+		return browser
+	case platform != "":
+		return platform
+	default:
+		return "Unknown device"
+	}
+}
+
+// relativeTime renders a stored RFC3339 timestamp as "just now", "2 hours
+// ago", and so on. Anything older than a week falls back to a short date.
+func relativeTime(ts string, now time.Time) string {
+	t, err := time.Parse(time.RFC3339, ts)
+	if err != nil {
+		return dateShort(ts)
+	}
+	d := now.Sub(t)
+	if d < 0 {
+		d = 0
+	}
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < 2*time.Minute:
+		return "1 minute ago"
+	case d < time.Hour:
+		return fmt.Sprintf("%d minutes ago", int(d/time.Minute))
+	case d < 2*time.Hour:
+		return "1 hour ago"
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%d hours ago", int(d/time.Hour))
+	case d < 48*time.Hour:
+		return "yesterday"
+	case d < 7*24*time.Hour:
+		return fmt.Sprintf("%d days ago", int(d/(24*time.Hour)))
+	default:
+		return "on " + dateShort(ts)
+	}
+}
 
 func (h *Handler) settingsPage(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := contextWithTimeout(r, 10*time.Second)
@@ -27,9 +147,19 @@ func (h *Handler) settingsPage(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("sync history", "error", err)
 	}
 	tokens, _ := h.Auth.ListTokens(ctx, user.ID)
+	sessionViews := h.sessionViews(r, ctx, user.ID)
 	token, source := h.Sync.APIToken(ctx)
+	var shares []yearreview.Share
+	if h.YearReview != nil {
+		shares, _ = h.YearReview.List(ctx, user.ID)
+	}
+	var shareYears []int
+	if h.Plays != nil {
+		shareYears, _ = h.Plays.PlayYears(ctx, user.ID)
+	}
 	data := &SettingsData{
-		Settings: settings, Runs: runs, Tokens: tokens, DocsURL: "/api/docs",
+		Settings: settings, Runs: runs, Tokens: tokens, Sessions: sessionViews, DocsURL: "/api/docs",
+		Shares: shares, ShareYears: shareYears,
 		IsAdmin: user.Role == "admin", BGGTokenConfigured: token != "", BGGTokenSource: source,
 	}
 	p := h.page(r, "Settings", "settings", "")
@@ -258,6 +388,28 @@ func (h *Handler) revokeToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.flashRedirect(w, r, "/settings", "Token revoked", "success")
+}
+
+func (h *Handler) revokeSession(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := contextWithTimeout(r, 5*time.Second)
+	defer cancel()
+	user := auth.UserFromContext(r.Context())
+	id := r.PathValue("id")
+	if err := h.Auth.RevokeSession(ctx, user.ID, id); err != nil {
+		if errors.Is(err, auth.ErrNotFound) {
+			h.errorPage(w, r, http.StatusNotFound, "That device has already been signed out", nil)
+			return
+		}
+		slog.Error("revoke session", "error", err)
+		h.flashRedirect(w, r, "/settings", "The device couldn't be signed out", "error")
+		return
+	}
+	if a := auth.FromContext(r.Context()); a != nil && a.Session != nil && auth.SessionID(a.Session.TokenHash) == id {
+		h.Auth.ClearSessionCookie(w)
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	h.flashRedirect(w, r, "/settings", "Signed out that device", "success")
 }
 
 func (h *Handler) trmnlPreview(w http.ResponseWriter, r *http.Request) {

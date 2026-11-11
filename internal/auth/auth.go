@@ -57,6 +57,19 @@ type Session struct {
 	ExpiresAt time.Time
 }
 
+// SessionInfo is a browser session as shown in the settings UI. It carries a
+// derived public identifier instead of the token hash or CSRF secret, so
+// neither credential can reach a template.
+type SessionInfo struct {
+	ID         string
+	UserID     string
+	CreatedAt  string
+	LastSeenAt string
+	ExpiresAt  string
+	IP         string
+	UserAgent  string
+}
+
 type Token struct {
 	ID         string
 	UserID     string
@@ -619,6 +632,79 @@ func (m *Manager) Logout(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, &http.Cookie{Name: SessionCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: m.secure, SameSite: http.SameSiteLaxMode})
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
+}
+
+// SessionID derives the stable public identifier for a session from its stored
+// token hash. Sessions are addressed by this value in the UI; the token hash
+// itself never leaves the auth package. The extra hash keeps the derived value
+// from being mistaken for a credential and makes collisions vanishingly rare.
+func SessionID(tokenHash string) string {
+	sum := sha256.Sum256([]byte("session:" + tokenHash))
+	return hex.EncodeToString(sum[:12])
+}
+
+// ListSessions returns the caller's browser sessions, newest activity first.
+// Expired rows are excluded; the cleanup job removes them in the background.
+func (m *Manager) ListSessions(ctx context.Context, userID string) ([]SessionInfo, error) {
+	rows, err := m.db.QueryContext(ctx, `SELECT token_hash,user_id,created_at,last_seen_at,expires_at,ip,user_agent
+		FROM sessions WHERE user_id=? AND expires_at >= ? ORDER BY last_seen_at DESC, created_at DESC`, userID, db.Now())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []SessionInfo
+	for rows.Next() {
+		var tokenHash string
+		var s SessionInfo
+		if err := rows.Scan(&tokenHash, &s.UserID, &s.CreatedAt, &s.LastSeenAt, &s.ExpiresAt, &s.IP, &s.UserAgent); err != nil {
+			return nil, err
+		}
+		s.ID = SessionID(tokenHash)
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// RevokeSession deletes one of the caller's sessions, addressed by its public
+// identifier. A session belonging to another user, or an unknown identifier,
+// yields ErrNotFound so callers render 404 rather than revealing that the row
+// exists.
+func (m *Manager) RevokeSession(ctx context.Context, userID, sessionID string) error {
+	if sessionID == "" {
+		return ErrNotFound
+	}
+	rows, err := m.db.QueryContext(ctx, `SELECT token_hash FROM sessions WHERE user_id=?`, userID)
+	if err != nil {
+		return err
+	}
+	var match string
+	for rows.Next() {
+		var tokenHash string
+		if err := rows.Scan(&tokenHash); err != nil {
+			rows.Close()
+			return err
+		}
+		if SessionID(tokenHash) == sessionID {
+			match = tokenHash
+			break
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	if match == "" {
+		return ErrNotFound
+	}
+	res, err := m.db.ExecContext(ctx, `DELETE FROM sessions WHERE user_id=? AND token_hash=?`, userID, match)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // CleanupSessions removes expired session rows.

@@ -115,6 +115,40 @@
     </form>
   </section>
 
+  <section class="panel" id="sessions" aria-labelledby="sessions-title">
+    <div class="panel-head">
+      <h2 id="sessions-title" class="section-title">Where you're signed in</h2>
+      {{if $d.Sessions}}<span class="panel-note">{{len $d.Sessions}} active {{if eq (len $d.Sessions) 1}}session{{else}}sessions{{end}}</span>{{end}}
+    </div>
+    <p class="panel-copy">Every browser holding a session on your account, most recently active first. Signing out another device ends that one only — this browser stays signed in. To end this session, use <a class="text-link text-link--small" href="#account">Sign out</a> in Account.</p>
+    {{if $d.Sessions}}
+    <ul class="session-list" aria-label="Signed-in devices">
+      {{range $d.Sessions}}
+      <li class="session-row{{if .Current}} is-current{{end}}">
+        <div class="session-head">
+          <span class="session-mark" aria-hidden="true">{{initials .Device}}</span>
+          <span class="session-device">
+            <strong>{{.Device}}</strong>
+            {{if .Current}}<span class="status-badge is-owned"><svg aria-hidden="true"><use href="#i-check"/></svg> This device</span>{{end}}
+          </span>
+        </div>
+        <p class="session-meta">
+          {{if .IP}}<span class="session-ip">{{.IP}}</span>{{end}}
+          <span>Signed in {{.Created}}</span>
+          <span>Last seen {{.LastSeen}}</span>
+        </p>
+        {{if not .Current}}
+        <form method="post" action="/settings/sessions/{{.ID}}/revoke" data-confirm="Sign out {{.Device}}? It will need to sign in again.">
+          <input type="hidden" name="csrf_token" value="{{$.CSRF}}">
+          <button class="button button--danger-ghost button--small" type="submit">Sign out<span class="sr-only"> {{.Device}}</span></button>
+        </form>
+        {{end}}
+      </li>
+      {{end}}
+    </ul>
+    {{else}}<p class="panel-empty">No active sessions.</p>{{end}}
+  </section>
+
   <section class="panel" id="privacy-controls" aria-labelledby="privacy-title">
     <div class="panel-head"><h2 id="privacy-title" class="section-title">Privacy controls</h2></div>
     <p class="panel-copy">Download a copy of your data, remove a third-party player name from your plays, or close the account. These links are also readable while signed out: <a href="/privacy">privacy policy</a> and <a href="/terms">terms of use</a>.</p>
@@ -179,7 +213,14 @@
     <ul class="token-list">
       {{range $d.Tokens}}
       <li>
-        <div><strong>{{.Name}}</strong><span class="token-meta">{{.Prefix}}… · {{join .Scopes ", "}}{{if .LastUsedAt}} · used {{dateShort .LastUsedAt}}{{end}}</span></div>
+        <div>
+          <strong>{{.Name}}</strong>
+          <span class="token-meta">
+            <code class="token-prefix">{{.Prefix}}…</code>
+            {{range .Scopes}}<span class="scope-chip">{{.}}</span>{{end}}
+            {{if .LastUsedAt}}<span class="token-used">used {{dateShort .LastUsedAt}}</span>{{else}}<span class="token-used">never used</span>{{end}}
+          </span>
+        </div>
         {{if .RevokedAt}}<span class="status-badge">Revoked</span>{{else}}
         <form method="post" action="/settings/tokens/{{.ID}}/revoke" data-confirm="Revoke this token? Anything using it will stop working.">
           <input type="hidden" name="csrf_token" value="{{$.CSRF}}">
@@ -190,6 +231,54 @@
       {{end}}
     </ul>
     {{else}}<p class="panel-empty">No tokens yet.</p>{{end}}
+  </section>
+
+  <section class="panel" id="year-review" aria-labelledby="year-review-title">
+    <div class="panel-head">
+      <h2 id="year-review-title" class="section-title">Year in review</h2>
+      {{if $d.Shares}}<span class="panel-note">{{len $d.Shares}} {{if eq (len $d.Shares) 1}}link{{else}}links{{end}}, revoked ones included</span>{{end}}
+    </div>
+    <p class="panel-copy">Turn one year into a quiet public page anyone with the link can read. Player names stay off unless you tick the box, and nothing is public until you create the link. Revoking it makes the page answer not found, while your own recap stays where it is.</p>
+    <form method="get" action="/settings/year/preview" class="stack">
+      <div class="field-grid">
+        <label class="field"><span>Year</span>
+          <select name="year">
+            {{if not $d.ShareYears}}<option value="{{.Year}}">{{.Year}}</option>{{end}}
+            {{range $d.ShareYears}}<option value="{{.}}" {{if eq . $.Year}}selected{{end}}>{{.}}</option>{{end}}
+          </select>
+        </label>
+        <label class="check check--card">
+          <input type="checkbox" name="include_players" value="1">
+          <span><strong>Include player names</strong><small>Off by default. Leave it off and opponents are described without names.</small></span>
+        </label>
+      </div>
+      <p class="fine-print">The preview shows exactly what becomes public, before any link exists.</p>
+      <div class="form-actions"><button class="button button--primary button--small" type="submit">Preview the page</button></div>
+    </form>
+    {{if $d.Shares}}
+    <ul class="share-list">
+      {{range $d.Shares}}
+      <li class="share-row">
+        <div class="share-meta">
+          <strong>{{.Year}} in review</strong>
+          <span>Created {{dateShort .CreatedAt}} · {{if .IncludePlayers}}player names included{{else}}no player names{{end}}{{if .RevokedAt}} · revoked {{dateShort .RevokedAt}}{{end}}</span>
+        </div>
+        {{if .RevokedAt}}
+        <span class="status-badge">Revoked</span>
+        {{else}}
+        <div class="share-live">
+          <input type="text" readonly value="{{$.BaseURL}}/s/{{.Token}}" aria-label="Public link for {{.Year}}" data-share-url>
+          <a class="text-link text-link--small" href="/s/{{.Token}}">Open<svg aria-hidden="true"><use href="#i-external"/></svg></a>
+          <form method="post" action="/settings/year/shares/{{.ID}}/revoke" data-confirm="Revoke this link? The public page will stop working.">
+            <input type="hidden" name="csrf_token" value="{{$.CSRF}}">
+            <button class="text-button text-button--danger" type="submit">Revoke</button>
+          </form>
+        </div>
+        {{end}}
+      </li>
+      {{end}}
+    </ul>
+    {{else}}<p class="panel-empty">No year has been published yet.</p>{{end}}
   </section>
 
   <section class="panel" aria-labelledby="trmnl-title">

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -467,5 +468,97 @@ func TestEnsureAdminPromotesOldestMember(t *testing.T) {
 	}
 	if admins != 1 {
 		t.Fatalf("admins = %d, want 1", admins)
+	}
+}
+
+// startTestSession creates a session for userID with the given client details
+// and returns the derived public identifier and stored token hash.
+func startTestSession(t *testing.T, m *Manager, userID, ip, ua string) (id, tokenHash string) {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = ip
+	req.Header.Set("User-Agent", ua)
+	rec := httptest.NewRecorder()
+	if err := m.StartSession(rec, req, userID); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == SessionCookie {
+			tokenHash = hashToken(c.Value)
+			return SessionID(tokenHash), tokenHash
+		}
+	}
+	t.Fatal("session cookie was not set")
+	return "", ""
+}
+
+func TestListSessionsScopesToUserAndOrdersByActivity(t *testing.T) {
+	m, owner := testManager(t)
+	other, err := m.UpsertUser(context.Background(), "other@example.com", "Other", "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chromeID, chromeHash := startTestSession(t, m, owner.ID, "203.0.113.4:5000", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36")
+	safariID, safariHash := startTestSession(t, m, owner.ID, "198.51.100.9:6000", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1")
+	startTestSession(t, m, other.ID, "192.0.2.7:7000", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Firefox/127.0")
+
+	// Safari was active more recently than Chrome.
+	if _, err := m.db.Exec(`UPDATE sessions SET last_seen_at=? WHERE token_hash=?`, "2026-03-02T10:00:00Z", safariHash); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.db.Exec(`UPDATE sessions SET last_seen_at=? WHERE token_hash=?`, "2026-03-01T10:00:00Z", chromeHash); err != nil {
+		t.Fatal(err)
+	}
+
+	sessions, err := m.ListSessions(context.Background(), owner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 2 {
+		t.Fatalf("sessions = %d, want 2 (the other user's row must be excluded)", len(sessions))
+	}
+	if sessions[0].ID != safariID || sessions[1].ID != chromeID {
+		t.Fatalf("order = [%s %s], want newest activity first [%s %s]", sessions[0].ID, sessions[1].ID, safariID, chromeID)
+	}
+	if sessions[0].UserAgent == "" || sessions[0].IP != "198.51.100.9:6000" {
+		t.Fatalf("session metadata missing: %+v", sessions[0])
+	}
+	if sessions[0].ID == sessions[0].UserAgent || sessions[0].ID == "" {
+		t.Fatalf("session ID must be derived, got %q", sessions[0].ID)
+	}
+}
+
+func TestRevokeSessionOnlyDeletesOwnedRow(t *testing.T) {
+	m, owner := testManager(t)
+	other, err := m.UpsertUser(context.Background(), "other@example.com", "Other", "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownedID, _ := startTestSession(t, m, owner.ID, "203.0.113.4:5000", "Chrome")
+	otherID, otherHash := startTestSession(t, m, other.ID, "192.0.2.7:7000", "Firefox")
+
+	if err := m.RevokeSession(context.Background(), owner.ID, otherID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("revoking another user's session = %v, want ErrNotFound", err)
+	}
+	var remaining int
+	if err := m.db.QueryRow(`SELECT COUNT(*) FROM sessions WHERE token_hash=?`, otherHash).Scan(&remaining); err != nil {
+		t.Fatal(err)
+	}
+	if remaining != 1 {
+		t.Fatal("another user's session must survive the failed revoke")
+	}
+
+	if err := m.RevokeSession(context.Background(), owner.ID, "does-not-exist"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("unknown session = %v, want ErrNotFound", err)
+	}
+
+	if err := m.RevokeSession(context.Background(), owner.ID, ownedID); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.db.QueryRow(`SELECT COUNT(*) FROM sessions WHERE user_id=?`, owner.ID).Scan(&remaining); err != nil {
+		t.Fatal(err)
+	}
+	if remaining != 0 {
+		t.Fatalf("owned sessions remaining = %d, want 0", remaining)
 	}
 }
