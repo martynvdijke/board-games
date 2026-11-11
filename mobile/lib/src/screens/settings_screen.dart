@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api/api_client.dart';
@@ -22,6 +25,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _syncing = false;
+  bool _exporting = false;
   SyncRun? _run;
   String? _syncError;
 
@@ -136,6 +140,50 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('The account could not be deleted.')),
+      );
+    }
+  }
+
+  /// Downloads the account export and writes it to this device's documents
+  /// directory, then tells the user where the file landed.
+  Future<void> _exportAccount() async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    File? saved;
+    String? message;
+    try {
+      final bytes = await ref.read(apiClientProvider).exportAccount();
+      final directory = await getApplicationDocumentsDirectory();
+      final now = DateTime.now();
+      final month = now.month.toString().padLeft(2, '0');
+      final day = now.day.toString().padLeft(2, '0');
+      final fileName = 'the-shelf-export-${now.year}-$month-$day.json';
+      final file = File('${directory.path}/$fileName');
+      await file.writeAsBytes(bytes, flush: true);
+      saved = file;
+    } on ApiException catch (error) {
+      message = error.isUnauthorized
+          ? 'That token is no longer valid. Sign in again with a fresh token.'
+          : error.message;
+    } catch (_) {
+      message = 'The export could not be saved on this device.';
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    if (saved != null) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Export saved to ${saved.path}'),
+          duration: const Duration(seconds: 8),
+        ),
+      );
+    } else {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(message ?? 'The export could not be downloaded.'),
+        ),
       );
     }
   }
@@ -392,8 +440,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Read what is stored, export a copy, or close the account.',
+                    'Read what is stored, save a copy to this phone, or close the account.',
                     style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _exporting ? null : _exportAccount,
+                    icon: _exporting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.download_outlined),
+                    label: Text(
+                      _exporting ? 'Preparing export…' : 'Export my data',
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Saves a JSON file with your profile, shelf, plays and '
+                    'player names to this phone\'s documents folder.',
+                    style: Theme.of(context).textTheme.labelSmall
                         ?.copyWith(color: scheme.onSurfaceVariant),
                   ),
                   const SizedBox(height: 12),

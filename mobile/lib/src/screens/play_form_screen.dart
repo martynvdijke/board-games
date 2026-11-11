@@ -18,13 +18,18 @@ class PlayFormScreen extends ConsumerStatefulWidget {
 }
 
 class _PlayerDraft {
-  _PlayerDraft({String name = '', String score = '', this.winner = false})
-    : name = TextEditingController(text: name),
-      score = TextEditingController(text: score);
+  _PlayerDraft({
+    String name = '',
+    String score = '',
+    this.winner = false,
+    this.firstPlay = false,
+  }) : name = TextEditingController(text: name),
+       score = TextEditingController(text: score);
 
   final TextEditingController name;
   final TextEditingController score;
   bool winner;
+  bool firstPlay;
 
   void dispose() {
     name.dispose();
@@ -61,7 +66,12 @@ class _PlayFormScreenState extends ConsumerState<PlayFormScreen> {
     if (play != null) {
       for (final p in play.players) {
         _players.add(
-          _PlayerDraft(name: p.name, score: p.score, winner: p.isWinner),
+          _PlayerDraft(
+            name: p.name,
+            score: p.score,
+            winner: p.isWinner,
+            firstPlay: p.isFirstPlay,
+          ),
         );
       }
     }
@@ -103,7 +113,7 @@ class _PlayFormScreenState extends ConsumerState<PlayFormScreen> {
           name: name,
           score: draft.score.text.trim(),
           isWinner: draft.winner,
-          isFirstPlay: false,
+          isFirstPlay: draft.firstPlay,
         ),
       );
     }
@@ -266,62 +276,84 @@ class _PlayFormScreenState extends ConsumerState<PlayFormScreen> {
             for (var i = 0; i < _players.length; i++)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Container(
-                      width: 24,
-                      alignment: Alignment.center,
-                      child: Text(
-                        '${i + 1}',
+                    Row(
+                      children: [
+                        Container(
+                          width: 24,
+                          alignment: Alignment.center,
+                          child: Text(
+                            '${i + 1}',
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(color: scheme.onSurfaceVariant),
+                          ),
+                        ),
+                        Expanded(
+                          child: TextField(
+                            controller: _players[i].name,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: const InputDecoration(
+                              hintText: 'Player name',
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 74,
+                          child: TextField(
+                            controller: _players[i].score,
+                            decoration: const InputDecoration(
+                              hintText: 'Pts',
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: _players[i].winner
+                              ? 'Not the winner'
+                              : 'Mark as winner',
+                          onPressed: () => setState(
+                            () => _players[i].winner = !_players[i].winner,
+                          ),
+                          icon: Icon(
+                            _players[i].winner
+                                ? Icons.emoji_events
+                                : Icons.emoji_events_outlined,
+                            size: 20,
+                            color: _players[i].winner
+                                ? scheme.secondary
+                                : scheme.onSurfaceVariant,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Remove player',
+                          onPressed: _players.length == 1
+                              ? null
+                              : () => setState(
+                                  () => _players.removeAt(i).dispose(),
+                                ),
+                          icon: const Icon(Icons.close, size: 18),
+                        ),
+                      ],
+                    ),
+                    CheckboxListTile(
+                      value: _players[i].firstPlay,
+                      onChanged: (checked) => setState(
+                        () => _players[i].firstPlay = checked ?? false,
+                      ),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      title: const Text('First time playing this'),
+                      subtitle: Text(
+                        'Marks a new game for this player',
                         style: Theme.of(context).textTheme.labelSmall
                             ?.copyWith(color: scheme.onSurfaceVariant),
                       ),
-                    ),
-                    Expanded(
-                      child: TextField(
-                        controller: _players[i].name,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: const InputDecoration(
-                          hintText: 'Player name',
-                          isDense: true,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 74,
-                      child: TextField(
-                        controller: _players[i].score,
-                        decoration: const InputDecoration(
-                          hintText: 'Pts',
-                          isDense: true,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: _players[i].winner
-                          ? 'Not the winner'
-                          : 'Mark as winner',
-                      onPressed: () => setState(
-                        () => _players[i].winner = !_players[i].winner,
-                      ),
-                      icon: Icon(
-                        _players[i].winner
-                            ? Icons.emoji_events
-                            : Icons.emoji_events_outlined,
-                        size: 20,
-                        color: _players[i].winner
-                            ? scheme.secondary
-                            : scheme.onSurfaceVariant,
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Remove player',
-                      onPressed: _players.length == 1
-                          ? null
-                          : () =>
-                                setState(() => _players.removeAt(i).dispose()),
-                      icon: const Icon(Icons.close, size: 18),
                     ),
                   ],
                 ),

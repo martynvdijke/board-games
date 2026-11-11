@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -209,6 +210,56 @@ class ApiClient {
 
   Future<void> deleteAccount() async {
     await _send('DELETE', '/me', route: '/me');
+  }
+
+  /// Downloads the signed-in account export as raw JSON bytes. The endpoint
+  /// answers with a bare JSON document rather than the usual `data` envelope.
+  Future<Uint8List> exportAccount() async {
+    final span = Telemetry.instance.beginSpan(
+      'HTTP GET /me/export',
+      attributes: {
+        'http.request.method': 'GET',
+        'url.path': '/api/v1/me/export',
+        'shelf.api': true,
+      },
+      kind: 3,
+    );
+    try {
+      final request = http.Request('GET', _uri('/me/export'))
+        ..headers.addAll({
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+          'traceparent': span.traceparent,
+        });
+      final streamed = await _client
+          .send(request)
+          .timeout(const Duration(seconds: 60));
+      final response = await http.Response.fromStream(streamed);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final error = asMap(_decode(response.body)['error']);
+        throw ApiException(
+          stringOf(
+            error,
+            'message',
+            response.statusCode == 401
+                ? 'That token is no longer valid. Sign in again with a fresh token.'
+                : 'The export could not be downloaded.',
+          ),
+          statusCode: response.statusCode,
+          code: stringOf(error, 'code', 'request_failed'),
+        );
+      }
+      span.end(httpStatus: response.statusCode);
+      return response.bodyBytes;
+    } on ApiException catch (error) {
+      span.end(httpStatus: error.statusCode, failure: error);
+      rethrow;
+    } catch (error) {
+      span.end(failure: error);
+      throw const ApiException(
+        'Could not reach the server. Check your connection and try again.',
+      );
+    }
   }
 
   Future<Stats> stats({int? year}) async {
