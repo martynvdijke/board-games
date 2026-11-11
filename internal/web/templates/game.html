@@ -44,6 +44,15 @@
       {{if $g.Condition}}<div><dt>Condition</dt><dd>{{$g.Condition}}</dd></div>{{end}}
     </dl>
 
+    {{if or $d.Playtime $d.Reconcile}}
+    <div class="insight-strip">
+      <ul class="insight-list">
+        {{with $d.Playtime}}<li class="insight-line">{{.Line}}</li>{{end}}
+        {{with $d.Reconcile}}<li class="insight-line">{{.Line}} <a class="text-link text-link--small" href="{{.LogURL}}">Log a play<svg aria-hidden="true"><use href="#i-arrow"/></svg></a></li>{{end}}
+      </ul>
+    </div>
+    {{end}}
+
     {{if $g.Description}}
     <section class="prose">
       <h2 class="section-title">About the game</h2>
@@ -144,24 +153,38 @@
     </div>
 
     <div class="setup-photos">
-      <h3 class="setup-subhead">Photos</h3>
+      <div class="setup-photos-head">
+        <h3 class="setup-subhead">Photos</h3>
+        {{if $g.SetupImages}}<span class="panel-note">{{len $g.SetupImages}} of 40 photos</span>{{end}}
+      </div>
       {{if $g.SetupImages}}
-      <ul class="setup-gallery">
-        {{range $g.SetupImages}}
+      <ol class="setup-gallery">
+        {{range $i, $img := $g.SetupImages}}
         <li class="setup-photo">
-          <a class="setup-photo-link" href="{{.URL}}" target="_blank" rel="noopener">
-            <img src="{{.URL}}" alt="{{if .Caption}}{{.Caption}}{{else}}Setup photo{{end}}" loading="lazy">
+          <a class="setup-photo-link" href="{{$img.URL}}" target="_blank" rel="noopener">
+            <img src="{{$img.URL}}" alt="{{if $img.Caption}}{{$img.Caption}}{{else}}Step {{$img.Step}} photo{{end}}" loading="lazy">
           </a>
           <div class="setup-photo-body">
-            {{if .Caption}}<p class="setup-caption">{{.Caption}}</p>{{end}}
-            <form method="post" action="/games/{{$g.ID}}/setup/images/{{.ID}}/delete">
-              <input type="hidden" name="csrf_token" value="{{$.CSRF}}">
-              <button class="button button--danger-ghost button--small" type="submit" aria-label="{{if .Caption}}Remove photo {{.Caption}}{{else}}Remove setup photo{{end}}">Remove</button>
-            </form>
+            <div class="setup-photo-meta">
+              <p class="setup-step">Step {{$img.Step}}</p>
+              {{if $img.Caption}}<p class="setup-caption">{{$img.Caption}}</p>{{end}}
+            </div>
+            <div class="setup-photo-actions">
+              <form method="post" action="/games/{{$g.ID}}/setup" class="setup-move-form">
+                <input type="hidden" name="csrf_token" value="{{$.CSRF}}">
+                <input type="hidden" name="image_id" value="{{$img.ID}}">
+                <button class="button button--ghost button--small setup-move--earlier" type="submit" name="op" value="move_up" aria-label="Move step {{$img.Step}} earlier" title="Move earlier" {{if eq $i 0}}disabled{{end}}><svg aria-hidden="true"><use href="#i-arrow"/></svg></button>
+                <button class="button button--ghost button--small setup-move--later" type="submit" name="op" value="move_down" aria-label="Move step {{$img.Step}} later" title="Move later" {{if eq $i (sub (len $g.SetupImages) 1)}}disabled{{end}}><svg aria-hidden="true"><use href="#i-arrow"/></svg></button>
+              </form>
+              <form method="post" action="/games/{{$g.ID}}/setup/images/{{$img.ID}}/delete">
+                <input type="hidden" name="csrf_token" value="{{$.CSRF}}">
+                <button class="button button--danger-ghost button--small" type="submit" aria-label="{{if $img.Caption}}Remove photo {{$img.Caption}}{{else}}Remove step {{$img.Step}} photo{{end}}">Remove</button>
+              </form>
+            </div>
           </div>
         </li>
         {{end}}
-      </ul>
+      </ol>
       {{else}}
       <p class="setup-empty">No setup photos yet.</p>
       {{end}}
@@ -176,7 +199,7 @@
             <input type="text" name="caption" maxlength="200" placeholder="Step 1, player board…">
           </label>
         </div>
-        <p class="field-hint" id="setup-image-hint">JPG, PNG, WebP or GIF, up to 5 MB. 12 photos per game.</p>
+        <p class="field-hint" id="setup-image-hint">JPG, PNG, WebP or GIF, up to 5 MB. Up to 40 photos per game, ordered as steps.</p>
         <div class="form-actions"><button class="button button--ghost button--small" type="submit">Add photo</button></div>
       </form>
     </div>

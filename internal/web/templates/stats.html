@@ -5,6 +5,7 @@
     <p class="eyebrow">A year in games</p>
     <h1 class="display display--compact">{{$s.Year}} in review<span class="display-dot">.</span></h1>
     <p class="lede">The plays, people, and games that filled the table.</p>
+    <p class="page-head-link"><a class="text-link text-link--small" href="/year/{{$s.Year}}">Year in review<svg aria-hidden="true"><use href="#i-arrow"/></svg></a></p>
   </div>
   <form class="year-switcher" method="get" action="/stats">
     <label class="select-field"><span class="sr-only">Year</span>
@@ -18,6 +19,7 @@
 
 <section class="stat-cards">
   <div class="stat-card"><span class="stat-label">Sessions</span><span class="stat-big">{{$s.TotalPlays}}</span><span class="stat-foot">plays logged</span></div>
+  {{if $s.FirstPlays}}<div class="stat-card"><span class="stat-label">First plays</span><span class="stat-big">{{$s.FirstPlays}}</span><span class="stat-foot">players tried something new</span></div>{{end}}
   <div class="stat-card"><span class="stat-label">Distinct games</span><span class="stat-big">{{len $s.TopGames}}</span><span class="stat-foot">made it to the table</span></div>
   <div class="stat-card"><span class="stat-label">Shelf of shame</span><span class="stat-big">{{$d.Shelf.Unplayed}}</span><span class="stat-foot">{{if $d.Shelf.Owned}}of {{$d.Shelf.Owned}} owned games{{else}}owned games{{end}}</span></div>
   <div class="stat-card"><span class="stat-label">All-time plays</span><span class="stat-big">{{$d.Shelf.TotalPlays}}</span><span class="stat-foot">across the whole shelf</span></div>
@@ -27,6 +29,33 @@
   <div class="stat-card"><span class="stat-label">Unplayed capital</span><span class="stat-big stat-big--money">{{moneyInt $d.Shelf.UnplayedCapitalPence}}</span><span class="stat-foot">paid for games never played</span></div>
   {{end}}
 </section>
+
+{{if or $d.Playtime $d.Reconcile}}
+<div class="insight-strip">
+  <ul class="insight-list">
+    {{with $d.Playtime}}<li class="insight-line">{{.Line}}</li>{{end}}
+    {{with $d.Reconcile}}<li class="insight-line">{{.Line}}</li>{{end}}
+  </ul>
+</div>
+{{end}}
+
+{{if $d.Venues}}
+<section class="panel venues-panel" aria-labelledby="venues-title">
+  <div class="panel-head">
+    <h2 id="venues-title" class="section-title">Where you play</h2>
+    <span class="panel-note">{{len $d.Venues}} {{if eq (len $d.Venues) 1}}venue{{else}}venues{{end}}</span>
+  </div>
+  {{with $d.VenueLead}}<p class="insight-line venue-lead">{{.}}</p>{{end}}
+  <table class="leaderboard venues-table">
+    <thead><tr><th scope="col">Venue</th><th scope="col">Plays</th><th scope="col">Games</th><th scope="col">Last played</th></tr></thead>
+    <tbody>
+      {{range $d.Venues}}
+      <tr><td>{{.Name}}</td><td>{{.Plays}}</td><td>{{.DistinctGames}}</td><td>{{if .LastPlayedAt}}{{dateShort .LastPlayedAt}}{{else}}—{{end}}</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</section>
+{{end}}
 
 <div class="stats-columns">
   <section class="panel chart-panel" aria-labelledby="monthly-title">
