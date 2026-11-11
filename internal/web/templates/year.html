@@ -1,0 +1,152 @@
+{{define "content"}}{{$d := .Data}}{{$r := $d.Recap}}
+<article class="year-letter" aria-labelledby="year-title">
+  {{template "year-head" .}}
+  {{if $r.Sparse}}
+  {{template "year-sparse" .}}
+  {{else}}
+  {{template "year-totals" .}}
+  {{template "year-most-played" .}}
+  {{template "year-heaviest" .}}
+  {{template "year-first-plays" .}}
+  {{template "year-nemesis" .}}
+  {{template "year-surprise" .}}
+  {{template "year-cost" .}}
+  {{template "year-shelf" .}}
+  {{end}}
+</article>
+{{end}}
+
+{{define "year-head"}}{{$d := .Data}}{{$r := $d.Recap}}
+<header class="year-head">
+  <p class="eyebrow">A year at the table</p>
+  <h1 class="display display--compact" id="year-title">{{$r.Year}} in review<span class="display-dot">.</span></h1>
+  <p class="lede">The year as your play log recorded it. This page stays private until you publish it.</p>
+  <div class="year-head-foot">
+    {{if or $d.PrevYear $d.NextYear}}
+    <nav class="year-nav" aria-label="Other years">
+      {{if $d.PrevYear}}<a href="/year/{{$d.PrevYear}}"><span aria-hidden="true">←</span> {{$d.PrevYear}}</a>{{end}}
+      {{if $d.NextYear}}<a href="/year/{{$d.NextYear}}">{{$d.NextYear}} <span aria-hidden="true">→</span></a>{{end}}
+    </nav>
+    {{end}}
+    {{if not $r.Sparse}}
+    {{if $d.ActiveShare}}
+    <p class="year-share-state">This year has <a class="text-link text-link--small" href="/s/{{$d.ActiveShare.Token}}">a public link<svg aria-hidden="true"><use href="#i-external"/></svg></a>{{if $d.ActiveShare.IncludePlayers}}, with player names{{else}}, without player names{{end}}.</p>
+    {{else}}
+    <p class="year-share-state"><a class="text-link text-link--small" href="/settings#year-review">Publish this year<svg aria-hidden="true"><use href="#i-arrow"/></svg></a></p>
+    {{end}}
+    {{end}}
+  </div>
+</header>
+{{end}}
+
+{{define "year-totals"}}{{$d := .Data}}{{$r := $d.Recap}}
+<section class="year-section" aria-labelledby="year-totals-title">
+  <h2 class="eyebrow" id="year-totals-title">The year in numbers</h2>
+  <div class="year-figures">
+    <div class="year-figure">
+      <span class="year-figure-value">{{$r.Sessions}}</span>
+      <span class="year-figure-label">{{if eq $r.Sessions 1}}play{{else}}plays{{end}}</span>
+    </div>
+    <div class="year-figure">
+      <span class="year-figure-value">{{$r.DistinctGames}}</span>
+      <span class="year-figure-label">{{if eq $r.DistinctGames 1}}game{{else}}games{{end}} at the table</span>
+    </div>
+    {{if gt $r.Minutes 0}}
+    <div class="year-figure">
+      <span class="year-figure-value">{{$d.Hours}}</span>
+      <span class="year-figure-label">hours at the table</span>
+    </div>
+    {{end}}
+  </div>
+  {{if lt $r.PlaysWithDuration $r.Sessions}}
+  <p class="year-note">The hours are counted from the {{$r.PlaysWithDuration}} {{if eq $r.PlaysWithDuration 1}}play{{else}}plays{{end}} that recorded a duration, out of {{$r.Sessions}} in the year.</p>
+  {{end}}
+</section>
+{{end}}
+
+{{define "year-most-played"}}{{$d := .Data}}{{$r := $d.Recap}}
+{{with $r.MostPlayed}}
+<section class="year-section" aria-labelledby="year-most-title">
+  <p class="eyebrow">Most played</p>
+  <h2 class="year-title" id="year-most-title">{{.Name}}</h2>
+  <p class="year-body">It reached the table {{$r.MostPlayedPlays}} {{if eq $r.MostPlayedPlays 1}}time{{else}}times{{end}} this year.</p>
+</section>
+{{end}}
+{{end}}
+
+{{define "year-heaviest"}}{{$d := .Data}}{{$r := $d.Recap}}
+{{with $r.Heaviest}}
+<section class="year-section" aria-labelledby="year-heavy-title">
+  <p class="eyebrow">The heaviest thing you played</p>
+  <h2 class="year-title" id="year-heavy-title">{{.Name}}</h2>
+  <p class="year-body">Weight {{printf "%.1f" $r.HeaviestWeight}} on BoardGameGeek's five-point scale, the densest rulebook that made it to your table.</p>
+</section>
+{{end}}
+{{end}}
+
+{{define "year-first-plays"}}{{$d := .Data}}{{$r := $d.Recap}}
+{{if $r.FirstPlays}}
+<section class="year-section" aria-labelledby="year-firsts-title">
+  <p class="eyebrow">First plays</p>
+  <h2 class="year-title" id="year-firsts-title">{{len $r.FirstPlays}} {{if eq (len $r.FirstPlays) 1}}game was{{else}}games were{{end}} new to you.</h2>
+  <ul class="year-firsts">
+    {{range $r.FirstPlays}}<li>{{.Name}}</li>{{end}}
+  </ul>
+</section>
+{{end}}
+{{end}}
+
+{{define "year-nemesis"}}{{$d := .Data}}{{$r := $d.Recap}}
+{{with $r.Nemesis}}
+<section class="year-section" aria-labelledby="year-nemesis-title">
+  <p class="eyebrow" id="year-nemesis-title">Your nemesis</p>
+  {{if $d.NemesisNamed}}<h2 class="year-title">{{.Name}}</h2>{{end}}
+  <p class="year-lead">{{if $d.NemesisNamed}}They were{{else}}One opponent was{{end}} on the winning side in {{.Wins}} of the {{.Meetings}} games you played together.</p>
+  <p class="year-note">That counts the games where a winner and at least one loser were recorded. It means this person was on the winning side most often in your games, not that they hold a verified head-to-head record against you.</p>
+</section>
+{{end}}
+{{end}}
+
+{{define "year-surprise"}}{{$d := .Data}}{{$r := $d.Recap}}
+{{with $r.Surprise}}
+<section class="year-section" aria-labelledby="year-surprise-title">
+  <p class="eyebrow" id="year-surprise-title">Biggest surprise</p>
+  <h2 class="year-title">{{.Game.Name}}</h2>
+  <p class="year-lead">You rated it {{printf "%.1f" .UserRating}}.</p>
+  <p class="year-body">{{if gt .Delta 0.05}}That is {{printf "%.1f" .Delta}} above the median of {{printf "%.1f" .Median}} for the games you first played this year.{{else}}That sits level with the median of {{printf "%.1f" .Median}} for the games you first played this year.{{end}}</p>
+</section>
+{{end}}
+{{end}}
+
+{{define "year-cost"}}{{$d := .Data}}{{$r := $d.Recap}}
+{{with $r.CostPerHourPence}}
+<section class="year-section" aria-labelledby="year-cost-title">
+  <p class="eyebrow" id="year-cost-title">Cost per hour</p>
+  <p class="year-lead">{{moneyRate .}} for every hour at the table.</p>
+  <p class="year-note">What you paid for the games you played this year, divided by every hour you recorded, including time on games you borrowed or don't own.</p>
+</section>
+{{end}}
+{{end}}
+
+{{define "year-shelf"}}{{$d := .Data}}{{$r := $d.Recap}}
+<section class="year-section" aria-labelledby="year-shelf-title">
+  <p class="eyebrow" id="year-shelf-title">The shelf of shame</p>
+  {{if ne $r.Shelf.Delta 0}}
+  <p class="year-lead">{{$r.Shelf.UnplayedNow}} owned {{if eq $r.Shelf.UnplayedNow 1}}game has{{else}}games have{{end}} never been played — {{if gt $r.Shelf.Delta 0}}{{$r.Shelf.Delta}} more{{else}}{{sub 0 $r.Shelf.Delta}} fewer{{end}} than at the start of {{$r.Year}}.</p>
+  {{else}}
+  <p class="year-lead">{{$r.Shelf.UnplayedNow}} owned {{if eq $r.Shelf.UnplayedNow 1}}game has{{else}}games have{{end}} never been played — the same number as at the start of {{$r.Year}}.</p>
+  {{end}}
+  {{if $r.Shelf.UsedFallback}}
+  <p class="year-note">Some games have no acquisition date, so the day they were added to the shelf stands in for it.</p>
+  {{end}}
+</section>
+{{end}}
+
+{{define "year-sparse"}}{{$d := .Data}}{{$r := $d.Recap}}
+<section class="year-section year-sparse" aria-labelledby="year-sparse-title">
+  <p class="eyebrow" id="year-sparse-title">Nothing logged</p>
+  <p class="year-lead">No plays were logged in {{$r.Year}}.</p>
+  <p class="year-body">There is nothing else to report for the year.</p>
+</section>
+{{template "year-shelf" .}}
+{{end}}

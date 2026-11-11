@@ -7,7 +7,8 @@
   <meta name="description" content="A warm, quiet home for your board game collection, plays, and shelf of shame.">
   <meta name="theme-color" content="#F7F2E8" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#14120F" media="(prefers-color-scheme: dark)">
-  <meta name="csrf-token" content="{{.CSRF}}">
+  {{if .NoIndex}}<meta name="robots" content="noindex">{{end}}
+  {{if .CSRF}}<meta name="csrf-token" content="{{.CSRF}}">{{end}}
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   {{range assetCSS "src/main.ts"}}<link rel="stylesheet" href="{{.}}">{{end}}
   <script>

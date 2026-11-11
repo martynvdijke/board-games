@@ -1,0 +1,137 @@
+{{define "content"}}{{$d := .Data}}{{$r := $d.Recap}}
+<article class="year-letter{{if $d.Public}} year-letter--public{{end}}" aria-labelledby="year-title">
+  {{if $d.Preview}}
+  <div class="year-banner" role="status">
+    <p><strong>Preview.</strong> Nothing here is public yet. This is exactly what a visitor sees once the link exists.</p>
+  </div>
+  {{end}}
+
+  <header class="year-head">
+    <p class="eyebrow">A year at the table</p>
+    <h1 class="display display--compact" id="year-title">{{$r.Year}} in review<span class="display-dot">.</span></h1>
+    <p class="lede">{{if $d.Public}}A year of plays, shared from {{.AppName}}.{{else}}A year of plays, as it will appear on the public page.{{end}}</p>
+  </header>
+
+  {{if $r.Sparse}}
+  <section class="year-section year-sparse" aria-labelledby="year-sparse-title">
+    <p class="eyebrow" id="year-sparse-title">Nothing logged</p>
+    <p class="year-lead">No plays were logged in {{$r.Year}}.</p>
+    <p class="year-body">There is nothing else to report for the year.</p>
+  </section>
+  {{template "share-shelf" .}}
+  {{else}}
+
+  <section class="year-section" aria-labelledby="share-totals-title">
+    <h2 class="eyebrow" id="share-totals-title">The year in numbers</h2>
+    <div class="year-figures">
+      <div class="year-figure">
+        <span class="year-figure-value">{{$r.Sessions}}</span>
+        <span class="year-figure-label">{{if eq $r.Sessions 1}}play{{else}}plays{{end}}</span>
+      </div>
+      <div class="year-figure">
+        <span class="year-figure-value">{{$r.DistinctGames}}</span>
+        <span class="year-figure-label">{{if eq $r.DistinctGames 1}}game{{else}}games{{end}} at the table</span>
+      </div>
+      {{if gt $r.Minutes 0}}
+      <div class="year-figure">
+        <span class="year-figure-value">{{$d.Hours}}</span>
+        <span class="year-figure-label">hours at the table</span>
+      </div>
+      {{end}}
+    </div>
+    {{if lt $r.PlaysWithDuration $r.Sessions}}
+    <p class="year-note">The hours are counted from the {{$r.PlaysWithDuration}} {{if eq $r.PlaysWithDuration 1}}play{{else}}plays{{end}} that recorded a duration, out of {{$r.Sessions}} in the year.</p>
+    {{end}}
+  </section>
+
+  {{with $r.MostPlayed}}
+  <section class="year-section" aria-labelledby="share-most-title">
+    <p class="eyebrow">Most played</p>
+    <h2 class="year-title" id="share-most-title">{{.Name}}</h2>
+    <p class="year-body">It reached the table {{$r.MostPlayedPlays}} {{if eq $r.MostPlayedPlays 1}}time{{else}}times{{end}} this year.</p>
+  </section>
+  {{end}}
+
+  {{with $r.Heaviest}}
+  <section class="year-section" aria-labelledby="share-heavy-title">
+    <p class="eyebrow">The heaviest thing played</p>
+    <h2 class="year-title" id="share-heavy-title">{{.Name}}</h2>
+    <p class="year-body">Weight {{printf "%.1f" $r.HeaviestWeight}} on BoardGameGeek's five-point scale, the densest rulebook that made it to the table.</p>
+  </section>
+  {{end}}
+
+  {{if $r.FirstPlays}}
+  <section class="year-section" aria-labelledby="share-firsts-title">
+    <p class="eyebrow">First plays</p>
+    <h2 class="year-title" id="share-firsts-title">{{len $r.FirstPlays}} {{if eq (len $r.FirstPlays) 1}}game was{{else}}games were{{end}} new.</h2>
+    <ul class="year-firsts">
+      {{range $r.FirstPlays}}<li>{{.Name}}</li>{{end}}
+    </ul>
+  </section>
+  {{end}}
+
+  {{with $r.Nemesis}}
+  <section class="year-section" aria-labelledby="share-nemesis-title">
+    <p class="eyebrow" id="share-nemesis-title">The nemesis</p>
+    {{if $d.NemesisNamed}}<h2 class="year-title">{{.Name}}</h2>{{end}}
+    <p class="year-lead">{{if $d.NemesisNamed}}They were{{else}}One opponent was{{end}} on the winning side in {{.Wins}} of the {{.Meetings}} games played together.</p>
+    <p class="year-note">That counts the games where a winner and at least one loser were recorded. It means this person was on the winning side most often, not that they hold a verified head-to-head record.</p>
+  </section>
+  {{end}}
+
+  {{with $r.Surprise}}
+  <section class="year-section" aria-labelledby="share-surprise-title">
+    <p class="eyebrow" id="share-surprise-title">Biggest surprise</p>
+    <h2 class="year-title">{{.Game.Name}}</h2>
+    <p class="year-lead">Rated {{printf "%.1f" .UserRating}}.</p>
+    <p class="year-body">{{if gt .Delta 0.05}}That is {{printf "%.1f" .Delta}} above the median of {{printf "%.1f" .Median}} for the games first played this year.{{else}}That sits level with the median of {{printf "%.1f" .Median}} for the games first played this year.{{end}}</p>
+  </section>
+  {{end}}
+
+  {{with $r.CostPerHourPence}}
+  <section class="year-section" aria-labelledby="share-cost-title">
+    <p class="eyebrow" id="share-cost-title">Cost per hour</p>
+    <p class="year-lead">{{moneyRate .}} for every hour at the table.</p>
+    <p class="year-note">What was paid for the games played this year, divided by every hour recorded, including time on games borrowed or not owned.</p>
+  </section>
+  {{end}}
+
+  {{template "share-shelf" .}}
+  {{end}}
+
+  {{if $d.Preview}}
+  <section class="year-actions" aria-labelledby="share-publish-title">
+    <h2 class="eyebrow" id="share-publish-title">Publish this page</h2>
+    <form method="post" action="/settings/year/share" class="year-publish">
+      <input type="hidden" name="csrf_token" value="{{.CSRF}}">
+      <input type="hidden" name="year" value="{{$r.Year}}">
+      {{if $d.IncludePlayers}}<input type="hidden" name="include_players" value="1">{{end}}
+      <button class="button button--primary" type="submit">Create the public link</button>
+      <a class="button button--ghost" href="/settings#year-review">Back to settings</a>
+    </form>
+    <p class="fine-print">The link works for anyone who has it and can be revoked at any time from settings. Revoking makes this page answer not found.</p>
+  </section>
+  {{end}}
+
+  {{if $d.Public}}
+  <footer class="year-footer">
+    <p>{{$r.Year}} in review, shared from {{.AppName}}.</p>
+    {{if .BaseURL}}<p><a href="{{.BaseURL}}">{{.BaseURL}}</a></p>{{end}}
+  </footer>
+  {{end}}
+</article>
+{{end}}
+
+{{define "share-shelf"}}{{$d := .Data}}{{$r := $d.Recap}}
+<section class="year-section" aria-labelledby="share-shelf-title">
+  <p class="eyebrow" id="share-shelf-title">The shelf of shame</p>
+  {{if ne $r.Shelf.Delta 0}}
+  <p class="year-lead">{{$r.Shelf.UnplayedNow}} owned {{if eq $r.Shelf.UnplayedNow 1}}game has{{else}}games have{{end}} never been played — {{if gt $r.Shelf.Delta 0}}{{$r.Shelf.Delta}} more{{else}}{{sub 0 $r.Shelf.Delta}} fewer{{end}} than at the start of {{$r.Year}}.</p>
+  {{else}}
+  <p class="year-lead">{{$r.Shelf.UnplayedNow}} owned {{if eq $r.Shelf.UnplayedNow 1}}game has{{else}}games have{{end}} never been played — the same number as at the start of {{$r.Year}}.</p>
+  {{end}}
+  {{if $r.Shelf.UsedFallback}}
+  <p class="year-note">Some games have no acquisition date, so the day they were added to the shelf stands in for it.</p>
+  {{end}}
+</section>
+{{end}}
