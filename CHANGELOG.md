@@ -1,3 +1,10 @@
+# [1.12.0](https://github.com/martynvdijke/board-games/compare/v1.11.4...v1.12.0) (2026-11-11)
+
+
+### Features
+
+* **loans:** track who has your games ([6fd5cce](https://github.com/martynvdijke/board-games/commit/6fd5cced6ff8b2f36b7d94be7ea43665635190d7))
+
 ## [1.11.4](https://github.com/martynvdijke/board-games/compare/v1.11.3...v1.11.4) (2026-11-10)
 
 ## [1.11.3](https://github.com/martynvdijke/board-games/compare/v1.11.2...v1.11.3) (2026-11-10)
