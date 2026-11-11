@@ -4,7 +4,10 @@ import (
 	"math"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
+
+	"boardgames/internal/config"
 )
 
 // TradeCandidate is one ranked trade suggestion: the game, its score, and a
@@ -16,20 +19,26 @@ type TradeCandidate struct {
 }
 
 // RankTradeCandidates ranks games as trade candidates using the current time.
-// It delegates to RankTradeCandidatesAt with time.Now() so the ranking itself
-// stays pure and testable.
-func RankTradeCandidates(games []GameCard) []TradeCandidate {
-	return RankTradeCandidatesAt(games, time.Now())
+// The optional currency code (ISO 4217) drives the symbol in the reason text
+// and defaults to GBP. It delegates to RankTradeCandidatesAt with time.Now() so
+// the ranking itself stays pure and testable.
+func RankTradeCandidates(games []GameCard, currencies ...string) []TradeCandidate {
+	return RankTradeCandidatesAt(games, time.Now(), currencies...)
 }
 
 // RankTradeCandidatesAt is the pure, clock-injectable form of
 // RankTradeCandidates. It performs no I/O and is deterministic for a given
-// input and now. Results are sorted by descending score, then by name, then by
-// id ascending so equal scores are stable.
-func RankTradeCandidatesAt(games []GameCard, now time.Time) []TradeCandidate {
+// input, now and currency. Results are sorted by descending score, then by
+// name, then by id ascending so equal scores are stable.
+func RankTradeCandidatesAt(games []GameCard, now time.Time, currencies ...string) []TradeCandidate {
+	currency := "GBP"
+	if len(currencies) > 0 && strings.TrimSpace(currencies[0]) != "" {
+		currency = currencies[0]
+	}
+	symbol := config.CurrencySymbol(currency)
 	out := make([]TradeCandidate, 0, len(games))
 	for _, g := range games {
-		out = append(out, rankTradeCandidate(g, now))
+		out = append(out, rankTradeCandidate(g, now, symbol))
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Score != out[j].Score {
@@ -52,7 +61,7 @@ func RankTradeCandidatesAt(games []GameCard, now time.Time) []TradeCandidate {
 //	score   = (value + neglect), rounded to 2 decimals
 //
 // A favourite scores zero: it is kept regardless of the other signals.
-func rankTradeCandidate(g GameCard, now time.Time) TradeCandidate {
+func rankTradeCandidate(g GameCard, now time.Time, symbol string) TradeCandidate {
 	if g.Favorite {
 		return TradeCandidate{Game: g, Score: 0, Reason: "Favourite — keep it"}
 	}
@@ -93,13 +102,13 @@ func rankTradeCandidate(g GameCard, now time.Time) TradeCandidate {
 	return TradeCandidate{
 		Game:   g,
 		Score:  score,
-		Reason: tradeReason(priceGBP, plays, wholeYears),
+		Reason: tradeReason(priceGBP, plays, wholeYears, symbol),
 	}
 }
 
 // tradeReason builds the short human sentence shown beside a candidate. It is
 // never empty: when no signal fires it falls back to a plain statement.
-func tradeReason(priceGBP float64, plays, years int) string {
+func tradeReason(priceGBP float64, plays, years int, symbol string) string {
 	var neglect string
 	switch {
 	case years >= 1 && plays == 0:
@@ -114,7 +123,7 @@ func tradeReason(priceGBP float64, plays, years int) string {
 
 	reason := neglect
 	if priceGBP > 0 {
-		prefix := "£" + formatPounds(priceGBP)
+		prefix := symbol + formatAmount(priceGBP)
 		if plays == 0 {
 			prefix += " shelf-warming"
 		} else {
@@ -145,7 +154,7 @@ func playPhrase(plays int) string {
 	}
 }
 
-func formatPounds(v float64) string {
+func formatAmount(v float64) string {
 	if v == math.Trunc(v) {
 		return itoa(int(v))
 	}

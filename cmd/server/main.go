@@ -27,7 +27,9 @@ import (
 	"boardgames/internal/observability"
 	"boardgames/internal/plays"
 	"boardgames/internal/trmnl"
+	"boardgames/internal/venues"
 	"boardgames/internal/web"
+	"boardgames/internal/yearreview"
 )
 
 func main() {
@@ -73,6 +75,8 @@ func run() error {
 	}
 	games := collection.NewRepo(database)
 	playRepo := plays.NewRepo(database)
+	venueRepo := venues.NewRepo(database)
+	playRepo.SetVenueResolver(venueRepo)
 	var notifier notify.Notifier
 	if telegram := notify.NewTelegram(cfg.TelegramBotToken, cfg.TelegramChatID); telegram != nil {
 		notifier = telegram
@@ -102,12 +106,9 @@ func run() error {
 
 	webHandler := &web.Handler{
 		Config: cfg, Auth: authManager, Account: accountService, Games: games, Plays: playRepo, Loans: loanRepo, Sync: syncService,
-		TRMNL: trmnlService, Images: images, SetupMediaDir: setupMediaDir, DB: database, MetricsHandler: providers.MetricsHandler(),
+		TRMNL: trmnlService, Images: images, YearReview: yearreview.NewStore(database), Venues: venueRepo, SetupMediaDir: setupMediaDir, DB: database, MetricsHandler: providers.MetricsHandler(),
 	}
-	apiHandler := &api.Handler{
-		Config: cfg, Auth: authManager, Account: accountService, Games: games, Plays: playRepo, Sync: syncService,
-		TRMNL: trmnlService, DB: database,
-	}
+	apiHandler := api.NewHandler(cfg, authManager, accountService, games, playRepo, loanRepo, syncService, trmnlService, database)
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/", http.StripPrefix("/api", apiHandler.Routes()))

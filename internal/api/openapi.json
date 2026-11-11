@@ -32,6 +32,9 @@
       "name": "Stats"
     },
     {
+      "name": "Venues"
+    },
+    {
       "name": "Sync"
     },
     {
@@ -884,6 +887,55 @@
         ]
       }
     },
+    "/venues": {
+      "get": {
+        "tags": [
+          "Venues"
+        ],
+        "summary": "List venues",
+        "description": "Resolved play locations for the authenticated user, busiest first.",
+        "responses": {
+          "200": {
+            "description": "Venues with play and game counts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "venues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "plays": {
+                            "type": "integer"
+                          },
+                          "distinct_games": {
+                            "type": "integer"
+                          },
+                          "last_played_at": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
     "/sync": {
       "get": {
         "tags": [
@@ -978,6 +1030,51 @@
                           }
                         }
                       }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/otel-settings": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Public OpenTelemetry settings",
+        "description": "Public telemetry discovery so the companion app can resolve its OTLP exporter at runtime. Returns only an endpoint URL and feature flags; no credential is exposed. Responses are never cached.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OTLP collector configuration and feature flags",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "endpoint": {
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "traces_enabled": {
+                      "type": "boolean"
+                    },
+                    "metrics_enabled": {
+                      "type": "boolean"
+                    },
+                    "logs_enabled": {
+                      "type": "boolean"
+                    },
+                    "service_name": {
+                      "type": "string"
                     }
                   }
                 }
@@ -1442,6 +1539,11 @@
             "items": {
               "$ref": "#/components/schemas/Player"
             }
+          },
+          "client_play_id": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Optional idempotency key. A retried request with the same value returns the play created by the first request (201) instead of creating a duplicate."
           }
         }
       },

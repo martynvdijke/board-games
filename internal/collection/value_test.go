@@ -114,3 +114,41 @@ func TestRankTradeCandidatesEmpty(t *testing.T) {
 		t.Errorf("want empty result, got %d", len(got))
 	}
 }
+
+// TestRankTradeCandidatesCurrency proves the reason text uses the instance
+// currency rather than a hardcoded pound sign.
+func TestRankTradeCandidatesCurrency(t *testing.T) {
+	now := time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC)
+	games := []GameCard{
+		{ID: 1, Name: "Priced", PricePaid: pence(4500), AcquisitionDate: "2020-01-01", TotalPlays: 2},
+	}
+	cases := []struct {
+		name     string
+		currency string
+		want     string
+	}{
+		{"default GBP", "", "£45"},
+		{"EUR", "EUR", "€45"},
+		{"USD", "USD", "$45"},
+		{"unknown code keeps the code", "CHF", "CHF 45"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var got []TradeCandidate
+			if tc.currency == "" {
+				got = RankTradeCandidatesAt(games, now)
+			} else {
+				got = RankTradeCandidatesAt(games, now, tc.currency)
+			}
+			if len(got) != 1 {
+				t.Fatalf("want 1 candidate, got %d", len(got))
+			}
+			if !strings.HasPrefix(got[0].Reason, tc.want) {
+				t.Errorf("reason = %q, want prefix %q", got[0].Reason, tc.want)
+			}
+			if strings.Contains(got[0].Reason, "£") && tc.currency != "" && tc.currency != "GBP" {
+				t.Errorf("reason still contains a pound sign: %q", got[0].Reason)
+			}
+		})
+	}
+}

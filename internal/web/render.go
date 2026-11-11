@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"boardgames/internal/collection"
+	"boardgames/internal/config"
 	"boardgames/internal/plays"
 )
 
@@ -285,19 +286,11 @@ func yearOf(s string) string {
 	return s
 }
 
-// currencySymbol maps the instance currency code to a display prefix. Unknown
-// codes keep their ISO code as a prefix so the figure is never ambiguous.
+// currencySymbol maps the instance currency code to a display prefix. It is a
+// thin alias over config.CurrencySymbol so templates and generated copy share
+// one mapping.
 func currencySymbol(code string) string {
-	switch strings.ToUpper(strings.TrimSpace(code)) {
-	case "EUR":
-		return "€"
-	case "USD":
-		return "$"
-	case "GBP", "":
-		return "£"
-	default:
-		return strings.ToUpper(strings.TrimSpace(code)) + " "
-	}
+	return config.CurrencySymbol(code)
 }
 
 func money(cents *int, symbol string) string {

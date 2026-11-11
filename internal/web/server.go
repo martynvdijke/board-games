@@ -19,6 +19,8 @@ import (
 	"boardgames/internal/loans"
 	"boardgames/internal/plays"
 	"boardgames/internal/trmnl"
+	"boardgames/internal/venues"
+	"boardgames/internal/yearreview"
 )
 
 type Handler struct {
@@ -31,6 +33,8 @@ type Handler struct {
 	Sync           *collection.SyncService
 	TRMNL          *trmnl.Service
 	Images         *trmnl.ImageService
+	YearReview     *yearreview.Store
+	Venues         *venues.Repo
 	SetupMediaDir  string
 	DB             *sql.DB
 	MetricsHandler http.Handler
@@ -53,6 +57,7 @@ type Page struct {
 	UmamiWebsiteID  string
 	AnalyticsOptOut bool
 	Legal           LegalData
+	NoIndex         bool // public pages: ask crawlers to stay away
 }
 
 type OverviewData struct {
@@ -150,6 +155,8 @@ type PlayFormData struct {
 	Today          string
 	Editing        bool
 	SelectedGameID int64
+	ClientID       string
+	Venues         []venues.Location
 }
 
 type playAttempt struct {
@@ -174,6 +181,9 @@ type SettingsData struct {
 	Settings           auth.UserSettings
 	Runs               []collection.SyncRun
 	Tokens             []auth.Token
+	Sessions           []SessionView
+	Shares             []yearreview.Share // year-in-review links, newest first
+	ShareYears         []int              // years the user can publish
 	NewToken           string
 	NewTokenName       string
 	BGGError           string
@@ -181,6 +191,22 @@ type SettingsData struct {
 	IsAdmin            bool
 	BGGTokenConfigured bool
 	BGGTokenSource     string
+}
+
+// YearData is the recap page model, shared by the private page, the publish
+// preview and the public share. Hours is formatted here because the template
+// helpers have no one-decimal division.
+type YearData struct {
+	Recap          *yearreview.Recap
+	Years          []int
+	Hours          string
+	PrevYear       int
+	NextYear       int
+	ActiveShare    *yearreview.Share
+	Public         bool // rendered at /s/{token}
+	Preview        bool // owner's pre-publish view
+	IncludePlayers bool // the share, or the share being previewed, names players
+	NemesisNamed   bool // the nemesis section may print a player name
 }
 
 type TRMNLData struct {
@@ -222,11 +248,15 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("POST /plays/{id}", h.requireUser(h.updatePlay))
 	mux.HandleFunc("POST /plays/{id}/delete", h.requireUser(h.deletePlay))
 	mux.HandleFunc("GET /stats", h.requireUser(h.statsPage))
+	mux.HandleFunc("GET /year/{year}", h.requireUser(h.yearRecap))
 	mux.HandleFunc("GET /pipeline", h.requireUser(h.pipeline))
 	mux.HandleFunc("GET /loans", h.requireUser(h.loansPage))
 	mux.HandleFunc("POST /loans", h.requireUser(h.createLoan))
 	mux.HandleFunc("POST /loans/{id}/return", h.requireUser(h.returnLoan))
 	mux.HandleFunc("GET /settings", h.requireUser(h.settingsPage))
+	mux.HandleFunc("GET /settings/year/preview", h.requireUser(h.yearSharePreview))
+	mux.HandleFunc("POST /settings/year/share", h.requireUser(h.yearShareCreate))
+	mux.HandleFunc("POST /settings/year/shares/{id}/revoke", h.requireUser(h.yearShareRevoke))
 	mux.HandleFunc("POST /settings/bgg", h.requireUser(h.saveBGG))
 	mux.HandleFunc("POST /settings/bgg-token", h.requireUser(h.saveBGGToken))
 	mux.HandleFunc("POST /settings/bgg-token/remove", h.requireUser(h.removeBGGToken))
@@ -235,13 +265,25 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("POST /settings/theme", h.requireUser(h.saveTheme))
 	mux.HandleFunc("POST /settings/tokens", h.requireUser(h.createToken))
 	mux.HandleFunc("POST /settings/tokens/{id}/revoke", h.requireUser(h.revokeToken))
+	mux.HandleFunc("POST /settings/sessions/{id}/revoke", h.requireUser(h.revokeSession))
 	mux.HandleFunc("POST /settings/account/delete", h.requireUser(h.deleteAccount))
 	mux.HandleFunc("POST /settings/players/remove", h.requireUser(h.removePlayerName))
 	mux.HandleFunc("POST /settings/privacy", h.requireUser(h.savePrivacy))
 	mux.HandleFunc("GET /settings/export", h.requireUser(h.exportAccountData))
 	mux.HandleFunc("GET /trmnl/preview", h.requireUser(h.trmnlPreview))
 
-	return h.Auth.LoadSession(h.securityHeaders(h.Auth.RequireCSRF(mux)))
+	// Public share pages live on their own mux, outside LoadSession and
+	// RequireCSRF, the way /login and the static/media handlers sit outside the
+	// parts of the chain they must not take part in. A request for /s/{token}
+	// therefore never reads or mints a session cookie, and cannot be refused or
+	// satisfied by a CSRF token. Security headers still apply.
+	public := http.NewServeMux()
+	public.HandleFunc("GET /s/{token}", h.publicYearShare)
+
+	root := http.NewServeMux()
+	root.Handle("/s/", h.securityHeaders(public))
+	root.Handle("/", h.Auth.LoadSession(h.securityHeaders(h.Auth.RequireCSRF(mux))))
+	return root
 }
 
 func (h *Handler) metricsHandler() http.Handler {

@@ -63,8 +63,8 @@ func setupAPI(t *testing.T) *fixture {
 	full, _, _ := manager.CreateToken(ctx, user.ID, "full", []string{"read", "write", "trmnl"})
 	games := collection.NewRepo(database)
 	playRepo := plays.NewRepo(database)
-	handler := &Handler{Config: cfg, Auth: manager, Games: games, Plays: playRepo, Loans: loans.New(database), DB: database,
-		Account: account.New(database), TRMNL: trmnl.NewService(database, games, playRepo, cfg)}
+	handler := NewHandler(cfg, manager, account.New(database), games, playRepo, loans.New(database), nil,
+		trmnl.NewService(database, games, playRepo, cfg), database)
 	return &fixture{handler: handler, db: database, user: user, read: read, write: write, full: full, gameID: gameID}
 }
 
@@ -97,6 +97,34 @@ func decode(t *testing.T, rr *httptest.ResponseRecorder) map[string]any {
 		t.Fatalf("invalid JSON: %v: %s", err, rr.Body.String())
 	}
 	return out
+}
+
+// TestNewHandlerWiresLoans is the regression guard for the production wiring:
+// cmd/server builds its API handler with NewHandler, so a nil Loans repo there
+// would panic on /v1/loans. The route must answer, not crash.
+func TestNewHandlerWiresLoans(t *testing.T) {
+	f := setupAPI(t)
+	if f.handler.Loans == nil {
+		t.Fatal("NewHandler left the loans repo nil")
+	}
+	if rr := f.request(t, http.MethodGet, "/v1/loans", f.read, nil); rr.Code != http.StatusOK {
+		t.Fatalf("GET /v1/loans = %d %s, want 200", rr.Code, rr.Body)
+	}
+	if rr := f.request(t, http.MethodGet, "/v1/loans", "", nil); rr.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated GET /v1/loans = %d, want 401", rr.Code)
+	}
+}
+
+// TestOpenAPIDocumentsOtelSettings keeps the served spec in step with the
+// public discovery route registered in Routes.
+func TestOpenAPIDocumentsOtelSettings(t *testing.T) {
+	data, err := assets.ReadFile("openapi.json")
+	if err != nil {
+		t.Fatalf("read openapi: %v", err)
+	}
+	if !strings.Contains(string(data), `"/otel-settings"`) {
+		t.Fatal("openapi.json does not document /otel-settings")
+	}
 }
 
 func TestAuthAndScopes(t *testing.T) {
@@ -710,5 +738,31 @@ func TestUnknownEndpointUsesErrorEnvelope(t *testing.T) {
 	errBody, ok := body["error"].(map[string]any)
 	if !ok || errBody["code"] != "not_found" {
 		t.Fatalf("unexpected envelope: %s", rr.Body.String())
+	}
+}
+
+func TestCreatePlayIsIdempotentWithClientPlayID(t *testing.T) {
+	f := setupAPI(t)
+	payload := map[string]any{"game_id": f.gameID, "played_at": "2026-05-02", "quantity": 1,
+		"client_play_id": "retry-key", "players": []map[string]any{{"name": "Alex"}}}
+	first := f.request(t, http.MethodPost, "/v1/plays", f.write, payload)
+	if first.Code != http.StatusCreated {
+		t.Fatalf("first create: %d %s", first.Code, first.Body)
+	}
+	firstID := decode(t, first)["data"].(map[string]any)["id"].(string)
+	second := f.request(t, http.MethodPost, "/v1/plays", f.write, payload)
+	if second.Code != http.StatusCreated {
+		t.Fatalf("retry should answer 201 with the original play: %d %s", second.Code, second.Body)
+	}
+	secondID := decode(t, second)["data"].(map[string]any)["id"].(string)
+	if firstID != secondID {
+		t.Fatalf("retry created a duplicate: %q vs %q", firstID, secondID)
+	}
+	var count int
+	if err := f.db.QueryRow(`SELECT COUNT(*) FROM plays WHERE user_id=?`, f.user.ID).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("expected one play after retry, got %d", count)
 	}
 }

@@ -116,7 +116,7 @@ func (h *Handler) renderLendForm(w http.ResponseWriter, r *http.Request, gameID 
 	w.WriteHeader(http.StatusUnprocessableEntity)
 	p := h.page(r, game.Name, "shelf", "")
 	p.Error = message
-	p.Data = data
+	p.Data = h.gamePageDataWith(ctx, user.ID, data)
 	h.render(w, r, "game.html", p)
 }
 

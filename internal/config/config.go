@@ -293,6 +293,22 @@ func currency(v string) string {
 	return v
 }
 
+// CurrencySymbol maps an ISO 4217 code to the display prefix used by the UI and
+// generated copy. Unknown codes keep the code itself as the prefix, so a figure
+// is never ambiguous.
+func CurrencySymbol(code string) string {
+	switch strings.ToUpper(strings.TrimSpace(code)) {
+	case "EUR":
+		return "€"
+	case "USD":
+		return "$"
+	case "GBP", "":
+		return "£"
+	default:
+		return strings.ToUpper(strings.TrimSpace(code)) + " "
+	}
+}
+
 func list(key string) []string {
 	var out []string
 	for _, v := range strings.Split(os.Getenv(key), ",") {

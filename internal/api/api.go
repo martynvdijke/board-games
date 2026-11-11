@@ -27,6 +27,7 @@ import (
 	"boardgames/internal/observability"
 	"boardgames/internal/plays"
 	"boardgames/internal/trmnl"
+	"boardgames/internal/venues"
 )
 
 //go:embed openapi.json docs.html
@@ -41,7 +42,28 @@ type Handler struct {
 	Loans   *loans.Repo
 	Sync    *collection.SyncService
 	TRMNL   *trmnl.Service
+	Venues  *venues.Repo
 	DB      *sql.DB
+}
+
+// NewHandler assembles an API handler from its dependencies. cmd/server and
+// the tests both build the handler here, so a dependency cannot be wired into
+// one composition path and silently left nil in the other.
+func NewHandler(cfg *config.Config, authManager *auth.Manager, accountService *account.Service, games *collection.Repo, playRepo *plays.Repo, loanRepo *loans.Repo, syncService *collection.SyncService, trmnlService *trmnl.Service, database *sql.DB) *Handler {
+	venueRepo := venues.NewRepo(database)
+	playRepo.SetVenueResolver(venueRepo)
+	return &Handler{
+		Config:  cfg,
+		Auth:    authManager,
+		Account: accountService,
+		Games:   games,
+		Plays:   playRepo,
+		Loans:   loanRepo,
+		Sync:    syncService,
+		TRMNL:   trmnlService,
+		Venues:  venueRepo,
+		DB:      database,
+	}
 }
 
 func (h *Handler) Routes() http.Handler {
@@ -75,6 +97,7 @@ func (h *Handler) Routes() http.Handler {
 	v1.Handle("GET /loans/{id}", auth.RequireScope("read", http.HandlerFunc(h.getLoan)))
 	v1.Handle("POST /loans/{id}/return", auth.RequireScope("write", http.HandlerFunc(h.returnLoan)))
 	v1.Handle("GET /stats", auth.RequireScope("read", http.HandlerFunc(h.stats)))
+	v1.Handle("GET /venues", auth.RequireScope("read", http.HandlerFunc(h.listVenues)))
 	v1.Handle("GET /sync", auth.RequireScope("read", http.HandlerFunc(h.syncStatus)))
 	v1.Handle("POST /sync", auth.RequireScope("write", http.HandlerFunc(h.startSync)))
 	v1.Handle("GET /trmnl", auth.RequireScope("trmnl", http.HandlerFunc(h.trmnlFeed)))
@@ -402,6 +425,7 @@ type playInputJSON struct {
 	Quantity        int              `json:"quantity"`
 	Notes           string           `json:"notes"`
 	Players         []playPlayerJSON `json:"players"`
+	ClientPlayID    string           `json:"client_play_id"`
 }
 
 func (h *Handler) createPlay(w http.ResponseWriter, r *http.Request) {
@@ -413,7 +437,7 @@ func (h *Handler) createPlay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in := plays.Input{GameID: body.GameID, PlayedAt: body.PlayedAt, Location: body.Location, Duration: body.DurationMinutes,
-		Quantity: body.Quantity, Notes: body.Notes, Players: toPlayers(body.Players)}
+		Quantity: body.Quantity, Notes: body.Notes, Players: toPlayers(body.Players), ClientID: body.ClientPlayID}
 	if in.Quantity == 0 {
 		in.Quantity = 1
 	}
@@ -776,6 +800,30 @@ func (h *Handler) stats(w http.ResponseWriter, r *http.Request) {
 			"median_cost_per_play_cents": shelf.MedianCostPerPlayPence,
 		},
 	}})
+}
+
+func (h *Handler) listVenues(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	user := auth.UserFromContext(r.Context())
+	stats, err := h.Venues.Stats(ctx, user.ID)
+	if err != nil {
+		serverError(w, "list venues", err)
+		return
+	}
+	type venueJSON struct {
+		ID            int64  `json:"id"`
+		Name          string `json:"name"`
+		Plays         int    `json:"plays"`
+		DistinctGames int    `json:"distinct_games"`
+		LastPlayedAt  string `json:"last_played_at"`
+	}
+	out := make([]venueJSON, 0, len(stats))
+	for _, v := range stats {
+		out = append(out, venueJSON{ID: v.LocationID, Name: v.Name, Plays: v.Plays,
+			DistinctGames: v.DistinctGames, LastPlayedAt: v.LastPlayedAt})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"venues": out})
 }
 
 func (h *Handler) syncStatus(w http.ResponseWriter, r *http.Request) {

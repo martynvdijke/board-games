@@ -1,6 +1,8 @@
 package web
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -121,7 +123,7 @@ func (h *Handler) pipeline(w http.ResponseWriter, r *http.Request) {
 		if b.State != "for_trade" || len(b.Games) == 0 {
 			continue
 		}
-		ranked := collection.RankTradeCandidates(b.Games)
+		ranked := collection.RankTradeCandidates(b.Games, h.Config.ShopCurrency)
 		tradeReasons = make(map[int64]string, len(ranked))
 		for _, c := range ranked {
 			tradeReasons[c.Game.ID] = c.Reason
@@ -172,7 +174,7 @@ func (h *Handler) gameDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := h.page(r, game.Name, "shelf", "")
-	p.Data = h.gameData(ctx, user.ID, game)
+	p.Data = h.gamePageData(ctx, user.ID, game)
 	h.render(w, r, "game.html", p)
 }
 
@@ -237,13 +239,43 @@ func (h *Handler) newPlayPage(w http.ResponseWriter, r *http.Request) {
 		h.errorPage(w, r, http.StatusInternalServerError, "We couldn't load your games", err)
 		return
 	}
+	today := time.Now().Format("2006-01-02")
 	selected := int64(parseInt(r.URL.Query().Get("game"), 0))
+	attempt := playAttempt{PlayedAt: today, Quantity: 1, Players: blankPlayers(2)}
+	// "Log again" copies the lineup of an earlier play into a brand-new local
+	// play. It never edits the source, so an imported BGG play is safe to read.
+	if from := strings.TrimSpace(r.URL.Query().Get("from")); from != "" {
+		play, err := h.Plays.Get(ctx, user.ID, from)
+		if err != nil {
+			h.errorPage(w, r, http.StatusNotFound, "That play isn't here", err)
+			return
+		}
+		players := make([]plays.Player, 0, len(play.Players))
+		for _, p := range play.Players {
+			players = append(players, plays.Player{Name: p.Name, Score: p.Score, IsWinner: p.IsWinner})
+		}
+		if len(players) == 0 {
+			players = blankPlayers(2)
+		}
+		attempt = playAttempt{GameID: play.GameID, PlayedAt: today, Duration: play.Duration, Quantity: play.Quantity, Players: players}
+		selected = play.GameID
+	}
 	known, _ := h.Plays.RecentPlayers(ctx, user.ID, 12)
-	data := &PlayFormData{Games: games, KnownPlayers: known, Today: time.Now().Format("2006-01-02"), SelectedGameID: selected,
-		Attempt: playAttempt{PlayedAt: time.Now().Format("2006-01-02"), Quantity: 1, Players: blankPlayers(2)}}
+	data := &PlayFormData{Games: games, KnownPlayers: known, Today: today, SelectedGameID: selected,
+		Attempt: attempt, ClientID: newClientID(), Venues: h.venueOptions(ctx, user.ID)}
 	p := h.page(r, "Log a play", "plays", "")
 	p.Data = data
 	h.render(w, r, "play_form.html", p)
+}
+
+// newClientID gives every create form an idempotency key so a double submit
+// or a retried request resolves to a single play.
+func newClientID() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(b)
 }
 
 func (h *Handler) createPlay(w http.ResponseWriter, r *http.Request) {
@@ -279,7 +311,8 @@ func (h *Handler) editPlayPage(w http.ResponseWriter, r *http.Request) {
 	}
 	known, _ := h.Plays.RecentPlayers(ctx, user.ID, 12)
 	data := &PlayFormData{Play: play, Games: games, KnownPlayers: known, Today: time.Now().Format("2006-01-02"), Editing: true, SelectedGameID: play.GameID,
-		Attempt: playAttempt{GameID: play.GameID, PlayedAt: play.PlayedAt, Location: play.Location, Duration: play.Duration, Quantity: play.Quantity, Notes: play.Notes, Players: play.Players}}
+		Attempt: playAttempt{GameID: play.GameID, PlayedAt: play.PlayedAt, Location: play.Location, Duration: play.Duration, Quantity: play.Quantity, Notes: play.Notes, Players: play.Players},
+		Venues:  h.venueOptions(ctx, user.ID)}
 	p := h.page(r, "Edit play", "plays", "")
 	p.Data = data
 	h.render(w, r, "play_form.html", p)
@@ -315,7 +348,7 @@ func (h *Handler) renderPlayForm(w http.ResponseWriter, r *http.Request, attempt
 	user := auth.UserFromContext(r.Context())
 	games, _ := h.Plays.ShelfGames(ctx, user.ID)
 	known, _ := h.Plays.RecentPlayers(ctx, user.ID, 12)
-	data := &PlayFormData{Games: games, KnownPlayers: known, Today: time.Now().Format("2006-01-02"), Editing: mode == "edit", SelectedGameID: attempt.GameID, Attempt: attempt}
+	data := &PlayFormData{Games: games, KnownPlayers: known, Today: time.Now().Format("2006-01-02"), Editing: mode == "edit", SelectedGameID: attempt.GameID, Attempt: attempt, ClientID: newClientID(), Venues: h.venueOptions(ctx, user.ID)}
 	if mode == "edit" {
 		if play, err := h.Plays.Get(ctx, user.ID, r.PathValue("id")); err == nil {
 			data.Play = play
@@ -358,7 +391,7 @@ func parsePlayForm(r *http.Request) (playAttempt, plays.Input) {
 		attempt.Players = append(attempt.Players, plays.Player{Name: name, Score: score, IsWinner: winner[key], IsFirst: first[key]})
 	}
 	return attempt, plays.Input{GameID: gameID, PlayedAt: attempt.PlayedAt, Location: attempt.Location, Duration: duration,
-		Quantity: quantity, Notes: attempt.Notes, Players: attempt.Players}
+		Quantity: quantity, Notes: attempt.Notes, Players: attempt.Players, ClientID: strings.TrimSpace(r.PostForm.Get("client_id"))}
 }
 
 func blankPlayers(n int) []plays.Player {
@@ -426,6 +459,7 @@ func (h *Handler) statsPage(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	user := auth.UserFromContext(r.Context())
 	year := parseInt(r.URL.Query().Get("year"), time.Now().Year())
+	h.backfillVenues(ctx, user.ID)
 	stats, err := h.Plays.Stats(ctx, user.ID, year)
 	if err != nil {
 		h.errorPage(w, r, http.StatusInternalServerError, "We couldn't build your stats", err)
@@ -449,7 +483,7 @@ func (h *Handler) statsPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	p := h.page(r, "Stats", "stats", "")
-	p.Data = &StatsData{Stats: stats, Shelf: shelf, Years: years, ChartMax: chartMax, TopMax: topMax}
+	p.Data = h.statsPageData(ctx, user.ID, &StatsData{Stats: stats, Shelf: shelf, Years: years, ChartMax: chartMax, TopMax: topMax})
 	h.render(w, r, "stats.html", p)
 }
 
