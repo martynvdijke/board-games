@@ -1,3 +1,21 @@
+# [1.13.0](https://github.com/martynvdijke/board-games/compare/v1.12.0...v1.13.0) (2026-11-11)
+
+
+### Bug Fixes
+
+* wire loans API, user timezone, currency symbol, otel docs ([92100b7](https://github.com/martynvdijke/board-games/commit/92100b741ee3e029447fdcf197a9d4f2fe6e4c61))
+
+
+### Features
+
+* **collection:** turn setup guides into ordered teach sheets ([0456eb2](https://github.com/martynvdijke/board-games/commit/0456eb286e634c488f74463b97e4f7cf22e684e9))
+* **insights:** calibrate playtime and reconcile BGG play counts ([4eca211](https://github.com/martynvdijke/board-games/commit/4eca2114a2a2b1443eed2ecb43bb48a952d62f85))
+* **mobile:** export account data and flag first plays ([5f4fc92](https://github.com/martynvdijke/board-games/commit/5f4fc92142ff4a878bd7159907ba1dabec1f33b9))
+* **plays:** author first plays, repeat a lineup, and dedupe retries ([b852f20](https://github.com/martynvdijke/board-games/commit/b852f2035732236fe0207d490a6ef822bc8eb246))
+* **settings:** show signed-in devices and token activity ([51cf5b6](https://github.com/martynvdijke/board-games/commit/51cf5b6df1271527e9a9724c8f6a8efe69903f0f))
+* **venues:** normalise locations and show where you play ([82252e7](https://github.com/martynvdijke/board-games/commit/82252e742951e48a5d0b798906beba34b1614ce1))
+* **year:** add year in review with revocable share links ([6669725](https://github.com/martynvdijke/board-games/commit/6669725ae9987f4e3ec010d24c227676a1e7409d))
+
 # [1.12.0](https://github.com/martynvdijke/board-games/compare/v1.11.4...v1.12.0) (2026-11-11)
 
 
