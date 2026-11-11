@@ -21,8 +21,8 @@ func TestMigrateAndForeignKeys(t *testing.T) {
 	if err := database.QueryRow(`SELECT MAX(version) FROM schema_migrations`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != "0007_loans" {
-		t.Fatalf("expected migrations through 0007_loans, got %q", version)
+	if version != "0011_locations" {
+		t.Fatalf("expected migrations through 0011_locations, got %q", version)
 	}
 	if _, err := database.Exec(`INSERT INTO sessions(token_hash,user_id,csrf_token,created_at,expires_at) VALUES('x','missing','y',?,?)`, Now(), Now()); err == nil {
 		t.Fatal("expected foreign key violation")
