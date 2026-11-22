@@ -1,3 +1,10 @@
+## [1.13.6](https://github.com/martynvdijke/board-games/compare/v1.13.5...v1.13.6) (2026-11-22)
+
+
+### Bug Fixes
+
+* **deps:** update all non-major dependencies ([#24](https://github.com/martynvdijke/board-games/issues/24)) ([c321cac](https://github.com/martynvdijke/board-games/commit/c321cac6938c48313bc1c032031fd9c94e6f07c7))
+
 ## [1.13.5](https://github.com/martynvdijke/board-games/compare/v1.13.4...v1.13.5) (2026-11-20)
 
 ## [1.13.4](https://github.com/martynvdijke/board-games/compare/v1.13.3...v1.13.4) (2026-11-18)
