@@ -1,3 +1,5 @@
+## [1.13.10](https://github.com/martynvdijke/board-games/compare/v1.13.9...v1.13.10) (2026-11-27)
+
 ## [1.13.9](https://github.com/martynvdijke/board-games/compare/v1.13.8...v1.13.9) (2026-11-26)
 
 ## [1.13.8](https://github.com/martynvdijke/board-games/compare/v1.13.7...v1.13.8) (2026-11-25)
